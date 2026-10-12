@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI Mobile Agent v5</title>
+    <title>AI Mobile Agent v6</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Marked.js для рендеринга Markdown -->
@@ -41,32 +41,32 @@
         </div>
     </div>
 
-    <!-- Задний фон при открытом сайдбаре -->
+    <!-- Задний фон -->
     <div id="sidebarOverlay" onclick="toggleSidebar()" class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden"></div>
 
-    <!-- Модальное окно настроек -->
+    <!-- Настройки -->
     <div id="settingsModal" class="hidden fixed inset-0 bg-black bg-opacity-80 p-4 flex flex-col justify-center z-50 overflow-y-auto">
         <div class="bg-gray-800 p-5 rounded-2xl max-w-sm mx-auto w-full border border-gray-700 space-y-3 my-auto max-h-[90vh] overflow-y-auto">
             <h2 class="text-lg font-bold">⚙️ Настройки</h2>
             
-            <label class="block text-xs text-gray-400">Base URL (API Endpoint):</label>
+            <label class="block text-xs text-gray-400">Base URL:</label>
             <input type="text" id="baseUrl" class="w-full p-2.5 bg-gray-900 rounded border border-gray-700 text-sm outline-none">
             
             <label class="block text-xs text-gray-400">API Key:</label>
             <input type="password" id="apiKey" class="w-full p-2.5 bg-gray-900 rounded border border-gray-700 text-sm outline-none">
             
-            <label class="block text-xs text-gray-400">Модель (Model Name):</label>
+            <label class="block text-xs text-gray-400">Модель:</label>
             <input type="text" id="modelName" class="w-full p-2.5 bg-gray-900 rounded border border-gray-700 text-sm outline-none">
 
             <label class="block text-xs text-gray-400">Tavily Search API Key:</label>
             <input type="password" id="tavilyKey" class="w-full p-2.5 bg-gray-900 rounded border border-gray-700 text-sm outline-none">
 
-            <label class="block text-xs text-gray-400">Системный промпт (System Prompt):</label>
+            <label class="block text-xs text-gray-400">Системный промпт:</label>
             <textarea id="systemPromptInput" rows="3" class="w-full p-2.5 bg-gray-900 rounded border border-gray-700 text-sm outline-none resize-none"></textarea>
 
             <div class="flex gap-2">
                 <div class="flex-1">
-                    <label class="block text-xs text-gray-400">Temperature:</label>
+                    <label class="block text-xs text-gray-400">Temp:</label>
                     <input type="number" id="tempInput" step="0.1" min="0" max="2" class="w-full p-2 bg-gray-900 rounded border border-gray-700 text-sm outline-none">
                 </div>
                 <div class="flex-1">
@@ -105,14 +105,12 @@
     </div>
 
     <script>
-        // 1. Устойчивый Storage Wrapper
         const Storage = {
             get: (key, fallback) => {
                 try {
                     const item = localStorage.getItem(key);
                     return item ? JSON.parse(item) : fallback;
                 } catch (e) {
-                    console.warn(`Storage read error for ${key}:`, e);
                     return fallback;
                 }
             },
@@ -121,20 +119,18 @@
                     localStorage.setItem(key, JSON.stringify(value));
                     return true;
                 } catch (e) {
-                    console.error(`Storage write error for ${key}:`, e);
-                    alert('Ошибка: не удалось сохранить данные (возможно, переполнено хранилище).');
+                    alert('Ошибка записи хранилища.');
                     return false;
                 }
             }
         };
 
-        let chats = Storage.get('ai_chats_v5', [{ id: 'default', title: 'Новый чат', messages: [] }]);
-        let currentChatId = Storage.get('ai_current_chat_v5', chats[0].id);
+        let chats = Storage.get('ai_chats_v6', [{ id: 'default', title: 'Новый чат', messages: [] }]);
+        let currentChatId = Storage.get('ai_current_chat_v6', chats[0].id);
         let abortController = null;
 
         const DEFAULT_SYSTEM = "Ты интеллектуальный автономный ИИ-ассистент. У тебя есть инструмент web_search для поиска свежей информации в интернете. Активно используй его при необходимости.";
 
-        // Настройка Marked с кастомным рендерером кода и кнопкой копирования
         const renderer = new marked.Renderer();
         renderer.code = (code, language) => {
             const validLang = language ? `language-${language}` : '';
@@ -162,7 +158,6 @@
             
             updateState();
 
-            // Коррекция высоты при открытии клавиатуры на мобильных
             if (window.visualViewport) {
                 window.visualViewport.addEventListener('resize', () => {
                     document.body.style.height = `${window.visualViewport.height}px`;
@@ -171,15 +166,14 @@
             }
         };
 
-        // 2. Управление состоянием
         function updateState(newChats, newCurrentId) {
             if (newChats) {
                 chats = newChats;
-                Storage.set('ai_chats_v5', chats);
+                Storage.set('ai_chats_v6', chats);
             }
             if (newCurrentId) {
                 currentChatId = newCurrentId;
-                Storage.set('ai_current_chat_v5', currentChatId);
+                Storage.set('ai_current_chat_v6', currentChatId);
             }
             renderChatList();
             renderActiveChat();
@@ -195,7 +189,10 @@
         }
 
         function saveSettings() {
-            Storage.set('ai_base_url', document.getElementById('baseUrl').value.trim());
+            let url = document.getElementById('baseUrl').value.trim();
+            if (url.endsWith('/')) url = url.slice(0, -1);
+            
+            Storage.set('ai_base_url', url);
             Storage.set('ai_api_key', document.getElementById('apiKey').value.trim());
             Storage.set('ai_model_name', document.getElementById('modelName').value.trim());
             Storage.set('ai_tavily_key', document.getElementById('tavilyKey').value.trim());
@@ -234,7 +231,7 @@
         function deleteChat(id, event) {
             event.stopPropagation();
             if (chats.length <= 1) {
-                alert('Нельзя удалить последний чат. Используйте "Очистить".');
+                alert('Нельзя удалить единственный чат.');
                 return;
             }
             const newChats = chats.filter(c => c.id !== id);
@@ -394,7 +391,9 @@
 
             abortController = new AbortController();
 
-            const baseUrl = Storage.get('ai_base_url', 'https://generativelanguage.googleapis.com/v1beta/openai');
+            let baseUrl = Storage.get('ai_base_url', 'https://generativelanguage.googleapis.com/v1beta/openai');
+            if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+
             const modelName = Storage.get('ai_model_name', 'gemini-2.5-flash');
             const systemPrompt = Storage.get('ai_system_prompt', DEFAULT_SYSTEM);
             const temperature = parseFloat(Storage.get('ai_temp', '0.7'));
@@ -427,6 +426,17 @@
                 }
             }];
 
+            // Безопасное формирование заголовков без блокировки CORS
+            const headers = {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json'
+            };
+
+            // Заголовок ngrok добавляется ТОЛЬКО для ngrok URL
+            if (baseUrl.includes('ngrok')) {
+                headers['ngrok-skip-browser-warning'] = '1';
+            }
+
             let attempts = 0;
             let success = false;
 
@@ -434,11 +444,7 @@
                 try {
                     const response = await fetch(`${baseUrl}/chat/completions`, {
                         method: 'POST',
-                        headers: {
-                            'Authorization': `Bearer ${apiKey}`,
-                            'Content-Type': 'application/json',
-                            'ngrok-skip-browser-warning': '1'
-                        },
+                        headers: headers,
                         body: JSON.stringify({
                             model: modelName,
                             messages: apiMessages,
@@ -471,7 +477,7 @@
                     attempts++;
                     if (attempts >= 3) {
                         hideSearchStatus();
-                        chat.messages.push({ role: 'assistant', content: '❌ Ошибка запроса: ' + err.message, error: true });
+                        chat.messages.push({ role: 'assistant', content: `❌ Ошибка подключения (${err.message}).\nПроверьте API ключ и доступность соединения.`, error: true });
                         updateState([...chats]);
                     } else {
                         await new Promise(r => setTimeout(r, 1500));
@@ -536,7 +542,7 @@
                                 }
                             }
                         } catch (parseErr) {
-                            // Пропускаем битые чанки стрима
+                            // Игнорируем битые фрагменты
                         }
                     }
                 }
@@ -577,7 +583,7 @@
                     } catch (e) {
                         hideSearchStatus();
                         if (assistantMessage) {
-                            assistantMessage.content += `\n[Ошибка разбора аргументов поиска]`;
+                            assistantMessage.content += `\n[Ошибка выполнения инструмента поиска]`;
                         }
                         updateState([...chats]);
                     }
@@ -610,7 +616,7 @@
             const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(chats));
             const dlAnchorElem = document.createElement('a');
             dlAnchorElem.setAttribute("href", dataStr);
-            dlAnchorElem.setAttribute("download", `ai_chats_v5_${Date.now()}.json`);
+            dlAnchorElem.setAttribute("download", `ai_chats_v6_${Date.now()}.json`);
             dlAnchorElem.click();
         }
 
@@ -623,7 +629,7 @@
                     const imported = JSON.parse(e.target.result);
                     if (Array.isArray(imported) && imported.length > 0) {
                         updateState(imported, imported[0].id);
-                        alert('Чаты успешно импортированы!');
+                        alert('Чаты импортированы!');
                     }
                 } catch (err) {
                     alert('Ошибка чтения JSON файла.');
@@ -633,4 +639,4 @@
         }
     </script>
 </body>
-</html> 
+</html>
