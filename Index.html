@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AI Mobile Agent v5</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Marked.js для рендеринга Markdown -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- DOMPurify для защиты от XSS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.8/purify.min.js"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; height: 100dvh; overflow: hidden; }
+        .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 1rem); }
+        pre code { display: block; overflow-x: auto; background: #090d16; padding: 0.75rem; border-radius: 0.5rem; margin-top: 0.5rem; margin-bottom: 0.5rem; }
+        p { margin-bottom: 0.5rem; }
+        p:last-child { margin-bottom: 0; }
+        ul { list-style-type: disc; padding-left: 1.25rem; margin-bottom: 0.5rem; }
+        ol { list-style-type: decimal; padding-left: 1.25rem; margin-bottom: 0.5rem; }
+    </style>
+</head>
+<body class="bg-gray-900 text-white flex flex-col">
+
+    <!-- Боковая панель (Список чатов) -->
+    <div id="sidebar" class="fixed inset-y-0 left-0 z-50 w-72 bg-gray-950 border-r border-gray-800 transform -translate-x-full transition-transform duration-300 flex flex-col">
+        <div class="p-4 border-b border-gray-800 flex justify-between items-center">
+            <h2 class="font-bold text-sm">💬 Диалоги</h2>
+            <button onclick="toggleSidebar()" class="text-gray-400 hover:text-white text-lg">✕</button>
+        </div>
+        <div class="p-3 space-y-2">
+            <button onclick="createNewChat()" class="w-full bg-blue-600 hover:bg-blue-500 py-2 rounded-lg font-bold text-sm">+ Новый чат</button>
+            <button onclick="clearCurrentChat()" class="w-full bg-gray-800 hover:bg-gray-700 text-gray-300 py-1.5 rounded-lg text-xs">🗑 Очистить этот чат</button>
+        </div>
+        <div id="chatList" class="flex-1 overflow-y-auto p-3 space-y-2 text-sm"></div>
+        <div class="p-3 border-t border-gray-800 flex gap-2">
+            <button onclick="exportChats()" class="flex-1 bg-gray-800 hover:bg-gray-700 py-1.5 rounded text-xs">Экспорт</button>
+            <label class="flex-1 bg-gray-800 hover:bg-gray-700 py-1.5 rounded text-xs text-center cursor-pointer">
+                Импорт <input type="file" onchange="importChats(event)" class="hidden" accept=".json">
+            </label>
+        </div>
+    </div>
+
+    <!-- Задний фон при открытом сайдбаре -->
+    <div id="sidebarOverlay" onclick="toggleSidebar()" class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden"></div>
+
+    <!-- Модальное окно настроек -->
+    <div id="settingsModal" class="hidden fixed inset-0 bg-black bg-opacity-80 p-4 flex flex-col justify-center z-50 overflow-y-auto">
+        <div class="bg-gray-800 p-5 rounded-2xl max-w-sm mx-auto w-full border border-gray-700 space-y-3 my-auto max-h-[90vh] overflow-y-auto">
+            <h2 class="text-lg font-bold">⚙️ Настройки</h2>
+            
+            <label class="block text-xs text-gray-400">Base URL (API Endpoint):</label>
+            <input type="text" id="baseUrl" class="w-full p-2.5 bg-gray-900 rounded border border-gray-700 text-sm outline-none">
+            
+            <label class="block text-xs text-gray-400">API Key:</label>
+            <input type="password" id="apiKey" class="w-full p-2.5 bg-gray-900 rounded border border-gray-700 text-sm outline-none">
+            
+            <label class="block text-xs text-gray-400">Модель (Model Name):</label>
+            <input type="text" id="modelName" class="w-full p-2.5 bg-gray-900 rounded border border-gray-700 text-sm outline-none">
+
+            <label class="block text-xs text-gray-400">Tavily Search API Key:</label>
+            <input type="password" id="tavilyKey" class="w-full p-2.5 bg-gray-900 rounded border border-gray-700 text-sm outline-none">
+
+            <label class="block text-xs text-gray-400">Системный промпт (System Prompt):</label>
+            <textarea id="systemPromptInput" rows="3" class="w-full p-2.5 bg-gray-900 rounded border border-gray-700 text-sm outline-none resize-none"></textarea>
+
+            <div class="flex gap-2">
+                <div class="flex-1">
+                    <label class="block text-xs text-gray-400">Temperature:</label>
+                    <input type="number" id="tempInput" step="0.1" min="0" max="2" class="w-full p-2 bg-gray-900 rounded border border-gray-700 text-sm outline-none">
+                </div>
+                <div class="flex-1">
+                    <label class="block text-xs text-gray-400">Max Tokens:</label>
+                    <input type="number" id="maxTokensInput" step="256" min="256" max="8192" class="w-full p-2 bg-gray-900 rounded border border-gray-700 text-sm outline-none">
+                </div>
+            </div>
+            
+            <button onclick="saveSettings()" class="w-full bg-blue-600 hover:bg-blue-500 py-2.5 rounded font-bold text-sm">Сохранить</button>
+            <button onclick="toggleSettings()" class="w-full bg-gray-700 hover:bg-gray-600 py-2 rounded text-xs text-gray-300">Закрыть</button>
+        </div>
+    </div>
+
+    <!-- Шапка -->
+    <header class="p-3 bg-gray-800 border-b border-gray-700 flex justify-between items-center shrink-0">
+        <button onclick="toggleSidebar()" class="text-xl px-2">☰</button>
+        <h1 id="activeChatTitle" class="font-bold text-sm truncate max-w-[200px]">Новый чат</h1>
+        <button onclick="toggleSettings()" class="text-xs bg-gray-700 px-3 py-1.5 rounded">⚙️ Настройки</button>
+    </header>
+
+    <!-- Область чата -->
+    <div id="chatBox" class="flex-1 overflow-y-auto p-4 space-y-4 text-sm"></div>
+
+    <!-- Индикатор поиска -->
+    <div id="searchStatus" class="hidden px-4 py-2 bg-gray-800/80 border-t border-gray-700 text-xs text-blue-400 flex items-center gap-2 shrink-0">
+        <span class="animate-spin">⏳</span> <span id="statusText">Ищу информацию в сети...</span>
+    </div>
+
+    <!-- Поле ввода -->
+    <div class="p-3 bg-gray-800 border-t border-gray-700 shrink-0 safe-bottom">
+        <div id="inputArea" class="flex gap-2 items-center">
+            <textarea id="userInput" rows="1" placeholder="Введите сообщение..." class="flex-1 bg-gray-900 border border-gray-700 p-3 rounded-xl text-base outline-none resize-none max-h-32" onkeydown="handleKeyDown(event)"></textarea>
+            <button id="sendBtn" onclick="sendMessage()" class="bg-blue-600 hover:bg-blue-500 px-4 py-3 rounded-xl font-bold text-sm shrink-0">➤</button>
+            <button id="stopBtn" onclick="stopGeneration()" class="hidden bg-red-600 hover:bg-red-500 px-4 py-3 rounded-xl font-bold text-sm shrink-0">⏹</button>
+        </div>
+    </div>
+
+    <script>
+        // 1. Устойчивый Storage Wrapper
+        const Storage = {
+            get: (key, fallback) => {
+                try {
+                    const item = localStorage.getItem(key);
+                    return item ? JSON.parse(item) : fallback;
+                } catch (e) {
+                    console.warn(`Storage read error for ${key}:`, e);
+                    return fallback;
+                }
+            },
+            set: (key, value) => {
+                try {
+                    localStorage.setItem(key, JSON.stringify(value));
+                    return true;
+                } catch (e) {
+                    console.error(`Storage write error for ${key}:`, e);
+                    alert('Ошибка: не удалось сохранить данные (возможно, переполнено хранилище).');
+                    return false;
+                }
+            }
+        };
+
+        let chats = Storage.get('ai_chats_v5', [{ id: 'default', title: 'Новый чат', messages: [] }]);
+        let currentChatId = Storage.get('ai_current_chat_v5', chats[0].id);
+        let abortController = null;
+
+        const DEFAULT_SYSTEM = "Ты интеллектуальный автономный ИИ-ассистент. У тебя есть инструмент web_search для поиска свежей информации в интернете. Активно используй его при необходимости.";
+
+        // Настройка Marked с кастомным рендерером кода и кнопкой копирования
+        const renderer = new marked.Renderer();
+        renderer.code = (code, language) => {
+            const validLang = language ? `language-${language}` : '';
+            const safeCode = DOMPurify.sanitize(code);
+            return `
+                <div class="relative group mt-2 mb-2">
+                    <pre class="bg-gray-950 rounded-lg overflow-x-auto"><code class="${validLang} text-sm p-3 block">${safeCode}</code></pre>
+                    <button onclick="navigator.clipboard.writeText(this.parentElement.querySelector('code').innerText); this.textContent = 'Скопировано!'; setTimeout(() => this.textContent = 'Копировать', 2000);" 
+                        class="absolute top-2 right-2 bg-gray-700 hover:bg-gray-600 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                        Копировать
+                    </button>
+                </div>
+            `;
+        };
+        marked.setOptions({ renderer, breaks: true, gfm: true });
+
+        window.onload = () => {
+            document.getElementById('baseUrl').value = Storage.get('ai_base_url', 'https://generativelanguage.googleapis.com/v1beta/openai');
+            document.getElementById('apiKey').value = Storage.get('ai_api_key', '');
+            document.getElementById('modelName').value = Storage.get('ai_model_name', 'gemini-2.5-flash');
+            document.getElementById('tavilyKey').value = Storage.get('ai_tavily_key', '');
+            document.getElementById('systemPromptInput').value = Storage.get('ai_system_prompt', DEFAULT_SYSTEM);
+            document.getElementById('tempInput').value = Storage.get('ai_temp', '0.7');
+            document.getElementById('maxTokensInput').value = Storage.get('ai_max_tokens', '2048');
+            
+            updateState();
+
+            // Коррекция высоты при открытии клавиатуры на мобильных
+            if (window.visualViewport) {
+                window.visualViewport.addEventListener('resize', () => {
+                    document.body.style.height = `${window.visualViewport.height}px`;
+                    scrollToBottom(false);
+                });
+            }
+        };
+
+        // 2. Управление состоянием
+        function updateState(newChats, newCurrentId) {
+            if (newChats) {
+                chats = newChats;
+                Storage.set('ai_chats_v5', chats);
+            }
+            if (newCurrentId) {
+                currentChatId = newCurrentId;
+                Storage.set('ai_current_chat_v5', currentChatId);
+            }
+            renderChatList();
+            renderActiveChat();
+        }
+
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('-translate-x-full');
+            document.getElementById('sidebarOverlay').classList.toggle('hidden');
+        }
+
+        function toggleSettings() {
+            document.getElementById('settingsModal').classList.toggle('hidden');
+        }
+
+        function saveSettings() {
+            Storage.set('ai_base_url', document.getElementById('baseUrl').value.trim());
+            Storage.set('ai_api_key', document.getElementById('apiKey').value.trim());
+            Storage.set('ai_model_name', document.getElementById('modelName').value.trim());
+            Storage.set('ai_tavily_key', document.getElementById('tavilyKey').value.trim());
+            Storage.set('ai_system_prompt', document.getElementById('systemPromptInput').value.trim());
+            Storage.set('ai_temp', document.getElementById('tempInput').value);
+            Storage.set('ai_max_tokens', document.getElementById('maxTokensInput').value);
+            toggleSettings();
+            alert('Настройки сохранены!');
+        }
+
+        function getCurrentChat() {
+            return chats.find(c => c.id === currentChatId) || chats[0];
+        }
+
+        function createNewChat() {
+            const newChat = { id: Date.now().toString(), title: 'Новый чат', messages: [] };
+            updateState([newChat, ...chats], newChat.id);
+            toggleSidebar();
+        }
+
+        function clearCurrentChat() {
+            if (confirm('Очистить историю текущего чата?')) {
+                const chat = getCurrentChat();
+                chat.messages = [];
+                chat.title = 'Новый чат';
+                updateState([...chats]);
+                toggleSidebar();
+            }
+        }
+
+        function switchChat(id) {
+            updateState(null, id);
+            toggleSidebar();
+        }
+
+        function deleteChat(id, event) {
+            event.stopPropagation();
+            if (chats.length <= 1) {
+                alert('Нельзя удалить последний чат. Используйте "Очистить".');
+                return;
+            }
+            const newChats = chats.filter(c => c.id !== id);
+            let newCurrentId = currentChatId;
+            if (currentChatId === id) {
+                newCurrentId = newChats[0].id;
+            }
+            updateState(newChats, newCurrentId);
+        }
+
+        function renderChatList() {
+            const list = document.getElementById('chatList');
+            list.innerHTML = '';
+            chats.forEach(chat => {
+                const isActive = chat.id === currentChatId;
+                const div = document.createElement('div');
+                div.className = `p-3 rounded-lg cursor-pointer flex justify-between items-center group transition-colors ${isActive ? 'bg-blue-600/20 border border-blue-600/50 text-white' : 'hover:bg-gray-800 border border-transparent text-gray-300'}`;
+                div.onclick = () => switchChat(chat.id);
+                div.innerHTML = `
+                    <span class="truncate font-medium text-sm flex-1">${DOMPurify.sanitize(chat.title)}</span>
+                    <button onclick="deleteChat('${chat.id}', event)" class="text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity p-1">✕</button>
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        function scrollToBottom(force = false) {
+            const chatBox = document.getElementById('chatBox');
+            const threshold = 150;
+            const isNearBottom = chatBox.scrollHeight - chatBox.scrollTop - chatBox.clientHeight < threshold;
+            if (force || isNearBottom) {
+                requestAnimationFrame(() => {
+                    chatBox.scrollTo({ top: chatBox.scrollHeight, behavior: 'smooth' });
+                });
+            }
+        }
+
+        function renderMessage(msg) {
+            const isUser = msg.role === 'user';
+            const div = document.createElement('div');
+            div.className = `flex ${isUser ? 'justify-end' : 'justify-start'}`;
+
+            let contentHtml = '';
+            if (msg.role === 'assistant') {
+                contentHtml = DOMPurify.sanitize(marked.parse(msg.content || ''));
+            } else {
+                contentHtml = escapeHtml(msg.content || '');
+            }
+
+            const bubbleClass = isUser 
+                ? 'bg-blue-600 text-white px-4 py-2.5 rounded-2xl rounded-tr-sm max-w-[85%] whitespace-pre-wrap'
+                : 'bg-gray-800 text-gray-100 px-4 py-3 rounded-2xl rounded-tl-sm max-w-[90%] border border-gray-700';
+
+            div.innerHTML = `<div class="${bubbleClass}">${contentHtml}</div>`;
+
+            if (msg.error) {
+                div.innerHTML += `<div class="mt-1 text-xs text-red-400"><button onclick="retryLastMessage()" class="underline">Повторить запрос</button></div>`;
+            }
+
+            return div;
+        }
+
+        function renderActiveChat() {
+            const chat = getCurrentChat();
+            document.getElementById('activeChatTitle').innerText = chat.title;
+            const chatBox = document.getElementById('chatBox');
+            chatBox.innerHTML = '';
+
+            if (chat.messages.length === 0) {
+                chatBox.innerHTML = `<div class="text-center text-gray-500 mt-10">Привет! Задай вопрос или попроси найти информацию.</div>`;
+                return;
+            }
+
+            const fragment = document.createDocumentFragment();
+            chat.messages.forEach((msg) => {
+                if (msg.role === 'tool') return;
+                if (msg.role === 'assistant' && !msg.content && !msg.tool_calls) return;
+                fragment.appendChild(renderMessage(msg));
+            });
+            chatBox.appendChild(fragment);
+            scrollToBottom(true);
+        }
+
+        function escapeHtml(text) {
+            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+
+        function handleKeyDown(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+            }
+        }
+
+        function showSearchStatus(text) {
+            const statusEl = document.getElementById('searchStatus');
+            document.getElementById('statusText').innerText = text;
+            statusEl.classList.remove('hidden');
+        }
+
+        function hideSearchStatus() {
+            document.getElementById('searchStatus').classList.add('hidden');
+        }
+
+        async function performTavilySearch(query) {
+            const tavilyKey = Storage.get('ai_tavily_key', '');
+            if (!tavilyKey) return "Поиск не настроен (нет ключа Tavily).";
+
+            try {
+                const res = await fetch('https://api.tavily.com/search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ api_key: tavilyKey, query: query, search_depth: "basic" })
+                });
+                const data = await res.json();
+                if (data.results) {
+                    return data.results.map(r => `Источник: ${r.title} (${r.url})\n${r.content}`).join('\n\n');
+                }
+            } catch (err) {
+                console.error("Search error:", err);
+            }
+            return "Ошибка выполнения поискового запроса.";
+        }
+
+        async function sendMessage(isRetry = false, toolDepth = 0) {
+            if (toolDepth > 3) {
+                hideSearchStatus();
+                alert('Превышен лимит вызовов инструментов поиска.');
+                return;
+            }
+
+            const input = document.getElementById('userInput');
+            const text = input.value.trim();
+            const chat = getCurrentChat();
+
+            if (!text && !isRetry) return;
+
+            const apiKey = Storage.get('ai_api_key', '');
+            if (!apiKey) {
+                alert('Укажите API Key в настройках!');
+                toggleSettings();
+                return;
+            }
+
+            if (!isRetry) {
+                if (chat.messages.length === 0) {
+                    chat.title = text.slice(0, 30) + (text.length > 30 ? '...' : '');
+                }
+                chat.messages.push({ role: 'user', content: text });
+                input.value = '';
+            }
+
+            updateState([...chats]);
+
+            document.getElementById('sendBtn').classList.add('hidden');
+            document.getElementById('stopBtn').classList.remove('hidden');
+
+            abortController = new AbortController();
+
+            const baseUrl = Storage.get('ai_base_url', 'https://generativelanguage.googleapis.com/v1beta/openai');
+            const modelName = Storage.get('ai_model_name', 'gemini-2.5-flash');
+            const systemPrompt = Storage.get('ai_system_prompt', DEFAULT_SYSTEM);
+            const temperature = parseFloat(Storage.get('ai_temp', '0.7'));
+            const maxTokens = parseInt(Storage.get('ai_max_tokens', '2048'));
+
+            const trimmedHistory = chat.messages.slice(-20).map(m => {
+                const obj = { role: m.role, content: m.content || "" };
+                if (m.tool_call_id) obj.tool_call_id = m.tool_call_id;
+                if (m.tool_calls) obj.tool_calls = m.tool_calls;
+                return obj;
+            });
+
+            const apiMessages = [
+                { role: 'system', content: `Сегодня: ${new Date().toLocaleDateString('ru-RU')}. ${systemPrompt}` },
+                ...trimmedHistory
+            ];
+
+            const tools = [{
+                type: "function",
+                function: {
+                    name: "web_search",
+                    description: "Выполнить поиск актуальной информации в интернете через поисковую систему Tavily.",
+                    parameters: {
+                        type: "object",
+                        properties: {
+                            query: { type: "string", description: "Поисковый запрос на русском или английском языке." }
+                        },
+                        required: ["query"]
+                    }
+                }
+            }];
+
+            let attempts = 0;
+            let success = false;
+
+            while (attempts < 3 && !success) {
+                try {
+                    const response = await fetch(`${baseUrl}/chat/completions`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${apiKey}`,
+                            'Content-Type': 'application/json',
+                            'ngrok-skip-browser-warning': '1'
+                        },
+                        body: JSON.stringify({
+                            model: modelName,
+                            messages: apiMessages,
+                            tools: tools,
+                            temperature: temperature,
+                            max_tokens: maxTokens,
+                            stream: true
+                        }),
+                        signal: abortController.signal
+                    });
+
+                    if (response.status === 429) {
+                        attempts++;
+                        await new Promise(r => setTimeout(r, 2000 * attempts));
+                        continue;
+                    }
+
+                    if (!response.ok) {
+                        const errData = await response.text();
+                        throw new Error(`HTTP ${response.status}: ${errData}`);
+                    }
+
+                    success = true;
+                    await handleStreamResponse(response, chat, toolDepth);
+
+                } catch (err) {
+                    if (err.name === 'AbortError') {
+                        break;
+                    }
+                    attempts++;
+                    if (attempts >= 3) {
+                        hideSearchStatus();
+                        chat.messages.push({ role: 'assistant', content: '❌ Ошибка запроса: ' + err.message, error: true });
+                        updateState([...chats]);
+                    } else {
+                        await new Promise(r => setTimeout(r, 1500));
+                    }
+                }
+            }
+
+            document.getElementById('sendBtn').classList.remove('hidden');
+            document.getElementById('stopBtn').classList.add('hidden');
+            abortController = null;
+        }
+
+        async function handleStreamResponse(response, chat, toolDepth) {
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let assistantMessage = null;
+            let buffer = '';
+            let toolCallsMap = {};
+
+            try {
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop();
+
+                    for (const line of lines) {
+                        const trimmed = line.trim();
+                        if (!trimmed.startsWith('data:')) continue;
+                        const dataStr = trimmed.replace('data:', '').trim();
+                        if (dataStr === '[DONE]') continue;
+
+                        try {
+                            const json = JSON.parse(dataStr);
+                            const delta = json.choices?.[0]?.delta;
+                            if (!delta) continue;
+
+                            if (delta.content) {
+                                if (!assistantMessage) {
+                                    assistantMessage = { role: 'assistant', content: '' };
+                                    chat.messages.push(assistantMessage);
+                                }
+                                assistantMessage.content += delta.content;
+                                renderActiveChat();
+                            }
+
+                            if (delta.tool_calls) {
+                                if (!assistantMessage) {
+                                    assistantMessage = { role: 'assistant', content: '' };
+                                    chat.messages.push(assistantMessage);
+                                }
+                                for (const tc of delta.tool_calls) {
+                                    const idx = tc.index ?? 0;
+                                    if (!toolCallsMap[idx]) {
+                                        toolCallsMap[idx] = { id: '', type: 'function', function: { name: '', arguments: '' } };
+                                    }
+                                    if (tc.id) toolCallsMap[idx].id = tc.id;
+                                    if (tc.function?.name) toolCallsMap[idx].function.name += tc.function.name;
+                                    if (tc.function?.arguments) toolCallsMap[idx].function.arguments += tc.function.arguments;
+                                }
+                            }
+                        } catch (parseErr) {
+                            // Пропускаем битые чанки стрима
+                        }
+                    }
+                }
+            } catch (err) {
+                if (err.name !== 'AbortError') throw err;
+            }
+
+            const toolCallsArray = Object.values(toolCallsMap);
+
+            if (toolCallsArray.length > 0 && assistantMessage) {
+                assistantMessage.tool_calls = toolCallsArray;
+                updateState([...chats]);
+
+                if (abortController && abortController.signal.aborted) {
+                    hideSearchStatus();
+                    return;
+                }
+
+                const tc = toolCallsArray[0];
+                if (tc && tc.function.name === 'web_search') {
+                    try {
+                        const args = JSON.parse(tc.function.arguments);
+                        showSearchStatus(`Ищу в сети: ${args.query}...`);
+
+                        const searchResult = await performTavilySearch(args.query);
+                        hideSearchStatus();
+
+                        if (abortController && abortController.signal.aborted) return;
+
+                        chat.messages.push({
+                            role: 'tool',
+                            tool_call_id: tc.id,
+                            content: searchResult
+                        });
+
+                        updateState([...chats]);
+                        await sendMessage(true, toolDepth + 1);
+                    } catch (e) {
+                        hideSearchStatus();
+                        if (assistantMessage) {
+                            assistantMessage.content += `\n[Ошибка разбора аргументов поиска]`;
+                        }
+                        updateState([...chats]);
+                    }
+                }
+            } else {
+                hideSearchStatus();
+                updateState([...chats]);
+            }
+        }
+
+        function stopGeneration() {
+            if (abortController) {
+                abortController.abort();
+                hideSearchStatus();
+                document.getElementById('sendBtn').classList.remove('hidden');
+                document.getElementById('stopBtn').classList.add('hidden');
+            }
+        }
+
+        function retryLastMessage() {
+            const chat = getCurrentChat();
+            if (chat.messages.length > 0 && chat.messages[chat.messages.length - 1].error) {
+                chat.messages.pop();
+            }
+            updateState([...chats]);
+            sendMessage(true);
+        }
+
+        function exportChats() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(chats));
+            const dlAnchorElem = document.createElement('a');
+            dlAnchorElem.setAttribute("href", dataStr);
+            dlAnchorElem.setAttribute("download", `ai_chats_v5_${Date.now()}.json`);
+            dlAnchorElem.click();
+        }
+
+        function importChats(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const imported = JSON.parse(e.target.result);
+                    if (Array.isArray(imported) && imported.length > 0) {
+                        updateState(imported, imported[0].id);
+                        alert('Чаты успешно импортированы!');
+                    }
+                } catch (err) {
+                    alert('Ошибка чтения JSON файла.');
+                }
+            };
+            reader.readAsText(file);
+        }
+    </script>
+</body>
+</html>
