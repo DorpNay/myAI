@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI Mobile Agent v8</title>
+    <title>AI Mobile Agent v8.1</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Marked.js для рендеринга Markdown -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <!-- DOMPurify для защиты от XSS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.8/purify.min.js"></script>
-    <!-- Pyodide для запуска Python прямо в браузере iPhone -->
+    <!-- Pyodide для запуска Python в браузере -->
     <script src="https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; height: 100dvh; overflow: hidden; }
@@ -84,7 +84,7 @@
         </div>
     </header>
 
-    <!-- Панель переключателей режимов (Поиск и Мультиагенты) -->
+    <!-- Переключатели режимов -->
     <div class="bg-gray-850 px-3 py-1.5 border-b border-gray-800 flex justify-around text-xs shrink-0 bg-gray-950">
         <label class="flex items-center gap-1.5 cursor-pointer text-gray-300">
             <input type="checkbox" id="toggleSearch" class="rounded bg-gray-800 border-gray-700 text-blue-600 focus:ring-0">
@@ -96,10 +96,10 @@
         </label>
     </div>
 
-    <!-- Область чата -->
+    <!-- Чат -->
     <div id="chatBox" class="flex-1 overflow-y-auto p-4 space-y-4 text-sm"></div>
 
-    <!-- Индикатор статуса -->
+    <!-- Статус -->
     <div id="searchStatus" class="hidden px-4 py-2 bg-gray-800/80 border-t border-gray-700 text-xs text-blue-400 flex items-center gap-2 shrink-0">
         <span class="animate-spin">⏳</span> <span id="statusText">Агенты выполняют задачу...</span>
     </div>
@@ -114,11 +114,11 @@
     </div>
 
     <script>
-        // --- 1. IndexedDB для кэширования и памяти ---
+        // IndexedDB
         let db = null;
         const initDB = () => {
             return new Promise((resolve) => {
-                const request = indexedDB.open('AI_Agent_DB_v8', 1);
+                const request = indexedDB.open('AI_Agent_DB_v81', 1);
                 request.onerror = () => resolve(null);
                 request.onsuccess = (e) => { db = e.target.result; resolve(db); };
                 request.onupgradeneeded = (e) => {
@@ -164,7 +164,7 @@
             }
         };
 
-        // --- 2. Инициализация Python (Pyodide) ---
+        // Pyodide Python
         let pyodideInstance = null;
         async function initPyodide() {
             try {
@@ -181,28 +181,40 @@
             if (!pyodideInstance) return "Python еще загружается в память браузера...";
             try {
                 let result = await pyodideInstance.runPythonAsync(code);
-                return String(result);
+                return String(result !== undefined ? result : "Код успешно выполнен (без вывода).");
             } catch (err) {
                 return `Ошибка Python: ${err.message}`;
             }
         }
 
-        // --- 3. Состояние и хранилище UI ---
-        let chats = JSON.parse(localStorage.getItem('ai_chats_v8')) || [{ id: 'default', title: 'Новый чат', messages: [] }];
-        let currentChatId = localStorage.getItem('ai_current_chat_v8') || chats[0].id;
+        let chats = JSON.parse(localStorage.getItem('ai_chats_v81')) || [{ id: 'default', title: 'Новый чат', messages: [] }];
+        let currentChatId = localStorage.getItem('ai_current_chat_v81') || chats[0].id;
         let abortController = null;
 
-        const DEFAULT_SYSTEM = "Ты автономный ИИ-ассистент и мультиагентная система. Ты умеешь искать в сети и выполнять код на Python прямо в браузере. Выдавай структурированные отчеты и при необходимости оформляй результаты для скачивания.";
+        const DEFAULT_SYSTEM = "Ты автономный ИИ-ассистент и мультиагентная система. Ты умеешь искать в сети и выполнять код на Python прямо в браузере. Выдавай структурированные отчеты.";
 
         const renderer = new marked.Renderer();
         renderer.code = (code, language) => {
             const validLang = language ? `language-${language}` : '';
             const safeCode = DOMPurify.sanitize(code);
+            
+            // Детектируем имя файла в описании языка (например markdown:report.md)
+            let filename = null;
+            if (language && language.includes(':')) {
+                filename = language.split(':')[1].trim();
+            }
+
+            let downloadBtn = '';
+            if (filename) {
+                downloadBtn = `<button onclick="downloadGeneratedFile('${filename}', \`${escapeHtml(code)}\`)" class="bg-blue-600 hover:bg-blue-500 text-white text-xs px-2 py-1 rounded font-bold">📥 Скачать ${filename}</button>`;
+            }
+
             return `
                 <div class="relative group mt-2 mb-2">
                     <pre class="bg-gray-950 rounded-lg overflow-x-auto"><code class="${validLang} text-sm p-3 block">${safeCode}</code></pre>
                     <div class="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onclick="navigator.clipboard.writeText(this.parentElement.querySelector('code').innerText); this.previousElementSibling.textContent = 'Скопировано!'; setTimeout(() => this.previousElementSibling.textContent = 'Копировать', 2000);" class="bg-gray-700 hover:bg-gray-600 text-white text-xs px-2 py-1 rounded">Копировать</button>
+                        ${downloadBtn}
+                        <button onclick="navigator.clipboard.writeText(this.parentElement.parentElement.querySelector('code').innerText); this.textContent = 'Скопировано!'; setTimeout(() => this.textContent = 'Копировать', 2000);" class="bg-gray-700 hover:bg-gray-600 text-white text-xs px-2 py-1 rounded">Копировать</button>
                         ${language === 'python' ? `<button onclick="executeBrowserPython(this)" class="bg-green-700 hover:bg-green-600 text-white text-xs px-2 py-1 rounded">▶ Запустить</button>` : ''}
                     </div>
                 </div>
@@ -244,11 +256,11 @@
         function updateState(newChats, newCurrentId) {
             if (newChats) {
                 chats = newChats;
-                localStorage.setItem('ai_chats_v8', JSON.stringify(chats));
+                localStorage.setItem('ai_chats_v81', JSON.stringify(chats));
             }
             if (newCurrentId) {
                 currentChatId = newCurrentId;
-                localStorage.setItem('ai_current_chat_v8', currentChatId);
+                localStorage.setItem('ai_current_chat_v81', currentChatId);
             }
             renderChatList();
             renderActiveChat();
@@ -356,15 +368,7 @@
                 ? 'bg-blue-600 text-white px-4 py-2.5 rounded-2xl rounded-tr-sm max-w-[85%] whitespace-pre-wrap'
                 : 'bg-gray-800 text-gray-100 px-4 py-3 rounded-2xl rounded-tl-sm max-w-[90%] border border-gray-700';
 
-            let fileActionHtml = '';
-            if (msg.fileData) {
-                fileActionHtml = `<div class="mt-2 pt-2 border-t border-gray-700 flex items-center justify-between">
-                    <span class="text-xs text-blue-300">📄 ${escapeHtml(msg.fileData.name)}</span>
-                    <button onclick="downloadGeneratedFile('${msg.fileData.name}', ${JSON.stringify(msg.fileData.content)})" class="bg-blue-600 hover:bg-blue-500 text-white text-xs px-3 py-1 rounded font-bold">📥 Скачать файл</button>
-                </div>`;
-            }
-
-            div.innerHTML = `<div class="${bubbleClass}">${contentHtml}${fileActionHtml}</div>`;
+            div.innerHTML = `<div class="${bubbleClass}">${contentHtml}</div>`;
 
             if (msg.error) {
                 div.innerHTML += `<div class="mt-1 text-xs text-red-400"><button onclick="retryLastMessage()" class="underline">Повторить запрос</button></div>`;
@@ -380,14 +384,14 @@
             chatBox.innerHTML = '';
 
             if (chat.messages.length === 0) {
-                chatBox.innerHTML = `<div class="text-center text-gray-500 mt-10">Привет! Я готов к работе. Используй переключатели поиска и мультиагентов сверху.</div>`;
+                chatBox.innerHTML = `<div class="text-center text-gray-500 mt-10">Привет! Все системы готовы к работе.</div>`;
                 return;
             }
 
             const fragment = document.createDocumentFragment();
             chat.messages.forEach((msg) => {
                 if (msg.role === 'tool') return;
-                if (msg.role === 'assistant' && !msg.content && !msg.tool_calls && !msg.fileData) return;
+                if (msg.role === 'assistant' && !msg.content && !msg.tool_calls) return;
                 fragment.appendChild(renderMessage(msg));
             });
             chatBox.appendChild(fragment);
@@ -456,9 +460,9 @@
         }
 
         async function sendMessage(isRetry = false, toolDepth = 0) {
-            if (toolDepth > 4) {
+            if (toolDepth > 3) {
                 hideSearchStatus();
-                alert('Превышен лимит итераций мультиагентов.');
+                alert('Превышен лимит вызовов.');
                 return;
             }
 
@@ -482,9 +486,8 @@
                 chat.messages.push({ role: 'user', content: text });
                 input.value = '';
                 
-                // Автоматическое извлечение факта для долгосрочной памяти
-                if (text.length > 10 && Math.random() < 0.3) {
-                    MemoryDB.add(`Пользователь сообщил: "${text.slice(0, 60)}"`);
+                if (text.length > 15 && Math.random() < 0.25) {
+                    MemoryDB.add(`Пользователь отметил: "${text.slice(0, 60)}"`);
                 }
             }
 
@@ -503,7 +506,6 @@
             const useSearch = document.getElementById('toggleSearch').checked;
             const useMultiAgent = document.getElementById('toggleMultiAgent').checked;
 
-            // Проверка кэша IndexedDB
             const cacheKey = `${modelName}_${text}_${useSearch}_${useMultiAgent}`;
             if (!isRetry && toolDepth === 0) {
                 const cachedResp = await CacheDB.get(cacheKey);
@@ -517,238 +519,14 @@
                 }
             }
 
-            // Загружаем память для контекста
             const memories = await MemoryDB.getAll();
-            const memoryContext = memories.length > 0 ? `\nДолгосрочная память о пользователе:\n` + memories.map(m => `- ${m.fact}`).join('\n') : '';
+            const memoryContext = memories.length > 0 ? `\nДолгосрочная память:\n` + memories.map(m => `- ${m.fact}`).join('\n') : '';
 
-            let fullSystemPrompt = `Сегодня: ${new Date().toLocaleDateString('ru-RU')}. ${systemPrompt} ${memoryContext}`;
+            let fullSystemPrompt = `Сегодня: ${new Date().toLocaleDateString('ru-RU')}. ${systemPrompt}${memoryContext}`;
             if (useMultiAgent) {
-                fullSystemPrompt += `\n[ВНИМАНИЕ: АКТИВИРОВАН МУЛЬТИАГЕНТНЫЙ РЕЖИМ]. Работай как команда агентов (Планировщик, Исследователь, Аналитик). Декомпозируй задачу, делай глубокий ресерч, пиши чистый код и если пользователь просит исследование — подготовь текст отчета для файла.`;
+                fullSystemPrompt += `\n[МУЛЬТИАГЕНТНЫЙ РЕЖИМ]. Работает команда (Planner, Researcher, Synthesizer). Проведи декомпозицию, исследуй вопрос, подготовь системный структурированный ответ. Если готово исследование/файл — заверни его в блок с именем файла, например \`\`\`markdown:filename.md`;
             }
 
-            const trimmedHistory = chat.messages.slice(-20).map(m => ({ role: m.role, content: m.content || "", ...(m.tool_call_id ? {tool_call_id: m.tool_call_id} : {}), ...(m.tool_calls ? {tool_calls: m.tool_calls} : {}) }));
-            const apiMessages = [{ role: 'system', content: fullSystemPrompt }, ...trimmedHistory];
-
-            const tools = [];
-            if (useSearch) {
-                tools.push({
-                    type: "function",
-                    function: {
-                        name: "web_search",
-                        description: "Поиск актуальной информации в интернете через Tavily.",
-                        parameters: { type: "object", properties: { query: { type: "string" } }, required: ["query"] }
-                    }
-                });
-            }
-            tools.push({
-                type: "function",
-                function: {
-                    name: "run_python",
-                    description: "Запустить Python код локально в браузере для вычислений или анализа данных.",
-                    parameters: { type: "object", properties: { code: { type: "string" } }, required: ["code"] }
-                }
-            });
-            tools.push({
-                type: "function",
-                function: {
-                    name: "save_file",
-                    description: "Создать и подготовить файл (.md или .txt) для скачивания пользователем.",
-                    parameters: { type: "object", properties: { filename: { type: "string" }, content: { type: "string" } }, required: ["filename", "content"] }
-                }
-            });
-
-            const headers = { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' };
-            if (baseUrl.includes('ngrok')) headers['ngrok-skip-browser-warning'] = '1';
-
-            let attempts = 0;
-            let success = false;
-
-            while (attempts < 3 && !success) {
-                try {
-                    const response = await fetch(`${baseUrl}/chat/completions`, {
-                        method: 'POST',
-                        headers: headers,
-                        body: JSON.stringify({ model: modelName, messages: apiMessages, tools: tools.length > 0 ? tools : undefined, stream: true }),
-                        signal: abortController.signal
-                    });
-
-                    if (response.status === 429) {
-                        attempts++;
-                        await new Promise(r => setTimeout(r, 2000 * attempts));
-                        continue;
-                    }
-
-                    if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`);
-
-                    success = true;
-                    await handleStreamResponse(response, chat, toolDepth, cacheKey);
-
-                } catch (err) {
-                    if (err.name === 'AbortError') break;
-                    attempts++;
-                    if (attempts >= 3) {
-                        hideSearchStatus();
-                        chat.messages.push({ role: 'assistant', content: `❌ Ошибка: ${err.message}`, error: true });
-                        updateState([...chats]);
-                    } else {
-                        await new Promise(r => setTimeout(r, 1500));
-                    }
-                }
-            }
-
-            document.getElementById('sendBtn').classList.remove('hidden');
-            document.getElementById('stopBtn').classList.add('hidden');
-            abortController = null;
-        }
-
-        async function handleStreamResponse(response, chat, toolDepth, cacheKey) {
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            let assistantMessage = null;
-            let buffer = '';
-            let toolCallsMap = {};
-
-            try {
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-
-                    buffer += decoder.decode(value, { stream: true });
-                    const lines = buffer.split('\n');
-                    buffer = lines.pop();
-
-                    for (const line of lines) {
-                        const trimmed = line.trim();
-                        if (!trimmed.startsWith('data:')) continue;
-                        const dataStr = trimmed.replace('data:', '').trim();
-                        if (dataStr === '[DONE]') continue;
-
-                        try {
-                            const json = JSON.parse(dataStr);
-                            const delta = json.choices?.[0]?.delta;
-                            if (!delta) continue;
-
-                            if (delta.content) {
-                                if (!assistantMessage) {
-                                    assistantMessage = { role: 'assistant', content: '' };
-                                    chat.messages.push(assistantMessage);
-                                }
-                                assistantMessage.content += delta.content;
-                                renderActiveChat();
-                            }
-
-                            if (delta.tool_calls) {
-                                if (!assistantMessage) {
-                                    assistantMessage = { role: 'assistant', content: '' };
-                                    chat.messages.push(assistantMessage);
-                                }
-                                for (const tc of delta.tool_calls) {
-                                    const idx = tc.index ?? 0;
-                                    if (!toolCallsMap[idx]) toolCallsMap[idx] = { id: '', type: 'function', function: { name: '', arguments: '' } };
-                                    if (tc.id) toolCallsMap[idx].id = tc.id;
-                                    if (tc.function?.name) toolCallsMap[idx].function.name += tc.function.name;
-                                    if (tc.function?.arguments) toolCallsMap[idx].function.arguments += tc.function.arguments;
-                                }
-                            }
-                        } catch (e) {}
-                    }
-                }
-            } catch (err) {
-                if (err.name !== 'AbortError') throw err;
-            }
-
-            const toolCallsArray = Object.values(toolCallsMap);
-
-            if (toolCallsArray.length > 0 && assistantMessage) {
-                assistantMessage.tool_calls = toolCallsArray;
-                updateState([...chats]);
-
-                if (abortController && abortController.signal.aborted) {
-                    hideSearchStatus();
-                    return;
-                }
-
-                const tc = toolCallsArray[0];
-                try {
-                    const args = JSON.parse(tc.function.arguments);
-                    let toolResult = "";
-
-                    if (tc.function.name === 'web_search') {
-                        showSearchStatus(`🔎 Поиск в сети: ${args.query}...`);
-                        toolResult = await performTavilySearch(args.query);
-                    } else if (tc.function.name === 'run_python') {
-                        showSearchStatus(`🐍 Выполняю Python код...`);
-                        toolResult = await runPythonCode(args.code);
-                    } else if (tc.function.name === 'save_file') {
-                        showSearchStatus(`💾 Создаю файл ${args.filename}...`);
-                        assistantMessage.fileData = { name: args.filename, content: args.content };
-                        toolResult = `Файл ${args.filename} успешно сформирован и готов к скачиванию.`;
-                    }
-
-                    hideSearchStatus();
-
-                    if (abortController && abortController.signal.aborted) return;
-
-                    chat.messages.push({ role: 'tool', tool_call_id: tc.id, content: toolResult });
-                    updateState([...chats]);
-                    await sendMessage(true, toolDepth + 1);
-                } catch (e) {
-                    hideSearchStatus();
-                    assistantMessage.content += `\n[Ошибка выполнения инструмента]`;
-                    updateState([...chats]);
-                }
-            } else {
-                hideSearchStatus();
-                if (assistantMessage && assistantMessage.content) {
-                    CacheDB.set(cacheKey, assistantMessage.content);
-                }
-                updateState([...chats]);
-            }
-        }
-
-        function stopGeneration() {
-            if (abortController) {
-                abortController.abort();
-                hideSearchStatus();
-                document.getElementById('sendBtn').classList.remove('hidden');
-                document.getElementById('stopBtn').classList.add('hidden');
-            }
-        }
-
-        function retryLastMessage() {
-            const chat = getCurrentChat();
-            if (chat.messages.length > 0 && chat.messages[chat.messages.length - 1].error) {
-                chat.messages.pop();
-            }
-            updateState([...chats]);
-            sendMessage(true);
-        }
-
-        function exportChats() {
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(chats));
-            const dlAnchorElem = document.createElement('a');
-            dlAnchorElem.setAttribute("href", dataStr);
-            dlAnchorElem.setAttribute("download", `ai_chats_v8_${Date.now()}.json`);
-            dlAnchorElem.click();
-        }
-
-        function importChats(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    const imported = JSON.parse(e.target.result);
-                    if (Array.isArray(imported) && imported.length > 0) {
-                        updateState(imported, imported[0].id);
-                        alert('Чаты импортированы!');
-                    }
-                } catch (err) {
-                    alert('Ошибка чтения JSON файла.');
-                }
-            };
-            reader.readAsText(file);
-        }
-    </script>
-</body>
-</html>
+            const trimmedHistory = chat.messages.slice(-20).map(m => ({
+                role: m.role,
+                content: m
