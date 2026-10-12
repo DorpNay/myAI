@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI Mobile Agent v8.1</title>
+    <title>AI Mobile Agent v8.2</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Marked.js для рендеринга Markdown -->
@@ -28,7 +28,7 @@
     <div id="sidebar" class="fixed inset-y-0 left-0 z-50 w-72 bg-gray-950 border-r border-gray-800 transform -translate-x-full transition-transform duration-300 flex flex-col">
         <div class="p-4 border-b border-gray-800 flex justify-between items-center">
             <h2 class="font-bold text-sm">💬 Диалоги и Память</h2>
-            <button onclick="toggleSidebar()" class="text-gray-400 hover:text-white text-lg">✕</button>
+            <button onclick="toggleSidebar()" class="text-gray-400 hover:text-white text-lg p-1">✕</button>
         </div>
         <div class="p-3 space-y-2">
             <button onclick="createNewChat()" class="w-full bg-blue-600 hover:bg-blue-500 py-2 rounded-lg font-bold text-sm">+ Новый чат</button>
@@ -76,7 +76,7 @@
 
     <!-- Шапка -->
     <header class="p-3 bg-gray-800 border-b border-gray-700 flex justify-between items-center shrink-0">
-        <button onclick="toggleSidebar()" class="text-xl px-2">☰</button>
+        <button onclick="toggleSidebar()" class="text-xl px-2 py-1">☰</button>
         <h1 id="activeChatTitle" class="font-bold text-sm truncate max-w-[180px]">Новый чат</h1>
         <div class="flex items-center gap-2">
             <span id="pyStatus" class="text-[10px] bg-yellow-600/30 text-yellow-300 px-2 py-0.5 rounded" title="Загрузка Python...">Py: ждем</span>
@@ -85,7 +85,7 @@
     </header>
 
     <!-- Переключатели режимов -->
-    <div class="bg-gray-850 px-3 py-1.5 border-b border-gray-800 flex justify-around text-xs shrink-0 bg-gray-950">
+    <div class="bg-gray-950 px-3 py-2 border-b border-gray-800 flex justify-around text-xs shrink-0">
         <label class="flex items-center gap-1.5 cursor-pointer text-gray-300">
             <input type="checkbox" id="toggleSearch" class="rounded bg-gray-800 border-gray-700 text-blue-600 focus:ring-0">
             <span>🌐 Веб-поиск</span>
@@ -118,14 +118,18 @@
         let db = null;
         const initDB = () => {
             return new Promise((resolve) => {
-                const request = indexedDB.open('AI_Agent_DB_v81', 1);
-                request.onerror = () => resolve(null);
-                request.onsuccess = (e) => { db = e.target.result; resolve(db); };
-                request.onupgradeneeded = (e) => {
-                    const database = e.target.result;
-                    if (!database.objectStoreNames.contains('cache')) database.createObjectStore('cache');
-                    if (!database.objectStoreNames.contains('memory')) database.createObjectStore('memory');
-                };
+                try {
+                    const request = indexedDB.open('AI_Agent_DB_v82', 1);
+                    request.onerror = () => resolve(null);
+                    request.onsuccess = (e) => { db = e.target.result; resolve(db); };
+                    request.onupgradeneeded = (e) => {
+                        const database = e.target.result;
+                        if (!database.objectStoreNames.contains('cache')) database.createObjectStore('cache');
+                        if (!database.objectStoreNames.contains('memory')) database.createObjectStore('memory');
+                    };
+                } catch (err) {
+                    resolve(null);
+                }
             });
         };
 
@@ -133,16 +137,20 @@
             get: async (key) => {
                 if (!db) return null;
                 return new Promise((res) => {
-                    const tx = db.transaction('cache', 'readonly');
-                    const req = tx.objectStore('cache').get(key);
-                    req.onsuccess = () => res(req.result || null);
-                    req.onerror = () => res(null);
+                    try {
+                        const tx = db.transaction('cache', 'readonly');
+                        const req = tx.objectStore('cache').get(key);
+                        req.onsuccess = () => res(req.result || null);
+                        req.onerror = () => res(null);
+                    } catch (e) { res(null); }
                 });
             },
             set: async (key, val) => {
                 if (!db) return;
-                const tx = db.transaction('cache', 'readwrite');
-                tx.objectStore('cache').put(val, key);
+                try {
+                    const tx = db.transaction('cache', 'readwrite');
+                    tx.objectStore('cache').put(val, key);
+                } catch (e) {}
             }
         };
 
@@ -150,17 +158,21 @@
             getAll: async () => {
                 if (!db) return [];
                 return new Promise((res) => {
-                    const tx = db.transaction('memory', 'readonly');
-                    const req = tx.objectStore('memory').getAll();
-                    req.onsuccess = () => res(req.result || []);
-                    req.onerror = () => res([]);
+                    try {
+                        const tx = db.transaction('memory', 'readonly');
+                        const req = tx.objectStore('memory').getAll();
+                        req.onsuccess = () => res(req.result || []);
+                        req.onerror = () => res([]);
+                    } catch (e) { res([]); }
                 });
             },
             add: async (fact) => {
                 if (!db) return;
-                const tx = db.transaction('memory', 'readwrite');
-                tx.objectStore('memory').add({ fact, time: Date.now() });
-                renderMemory();
+                try {
+                    const tx = db.transaction('memory', 'readwrite');
+                    tx.objectStore('memory').add({ fact, time: Date.now() });
+                    renderMemory();
+                } catch (e) {}
             }
         };
 
@@ -187,8 +199,8 @@
             }
         }
 
-        let chats = JSON.parse(localStorage.getItem('ai_chats_v81')) || [{ id: 'default', title: 'Новый чат', messages: [] }];
-        let currentChatId = localStorage.getItem('ai_current_chat_v81') || chats[0].id;
+        let chats = JSON.parse(localStorage.getItem('ai_chats_v82')) || [{ id: 'default', title: 'Новый чат', messages: [] }];
+        let currentChatId = localStorage.getItem('ai_current_chat_v82') || chats[0].id;
         let abortController = null;
 
         const DEFAULT_SYSTEM = "Ты автономный ИИ-ассистент и мультиагентная система. Ты умеешь искать в сети и выполнять код на Python прямо в браузере. Выдавай структурированные отчеты.";
@@ -198,23 +210,12 @@
             const validLang = language ? `language-${language}` : '';
             const safeCode = DOMPurify.sanitize(code);
             
-            // Детектируем имя файла в описании языка (например markdown:report.md)
-            let filename = null;
-            if (language && language.includes(':')) {
-                filename = language.split(':')[1].trim();
-            }
-
-            let downloadBtn = '';
-            if (filename) {
-                downloadBtn = `<button onclick="downloadGeneratedFile('${filename}', \`${escapeHtml(code)}\`)" class="bg-blue-600 hover:bg-blue-500 text-white text-xs px-2 py-1 rounded font-bold">📥 Скачать ${filename}</button>`;
-            }
-
             return `
                 <div class="relative group mt-2 mb-2">
                     <pre class="bg-gray-950 rounded-lg overflow-x-auto"><code class="${validLang} text-sm p-3 block">${safeCode}</code></pre>
                     <div class="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        ${downloadBtn}
-                        <button onclick="navigator.clipboard.writeText(this.parentElement.parentElement.querySelector('code').innerText); this.textContent = 'Скопировано!'; setTimeout(() => this.textContent = 'Копировать', 2000);" class="bg-gray-700 hover:bg-gray-600 text-white text-xs px-2 py-1 rounded">Копировать</button>
+                        <button onclick="downloadCodeSnippet(this)" class="bg-blue-600 hover:bg-blue-500 text-white text-xs px-2 py-1 rounded">📥 Скачать</button>
+                        <button onclick="copyCodeSnippet(this)" class="bg-gray-700 hover:bg-gray-600 text-white text-xs px-2 py-1 rounded">Копировать</button>
                         ${language === 'python' ? `<button onclick="executeBrowserPython(this)" class="bg-green-700 hover:bg-green-600 text-white text-xs px-2 py-1 rounded">▶ Запустить</button>` : ''}
                     </div>
                 </div>
@@ -246,6 +247,7 @@
         async function renderMemory() {
             const facts = await MemoryDB.getAll();
             const box = document.getElementById('memoryBox');
+            if (!box) return;
             if (facts.length === 0) {
                 box.innerHTML = 'Нет сохраненных фактов.';
                 return;
@@ -256,11 +258,11 @@
         function updateState(newChats, newCurrentId) {
             if (newChats) {
                 chats = newChats;
-                localStorage.setItem('ai_chats_v81', JSON.stringify(chats));
+                localStorage.setItem('ai_chats_v82', JSON.stringify(chats));
             }
             if (newCurrentId) {
                 currentChatId = newCurrentId;
-                localStorage.setItem('ai_current_chat_v81', currentChatId);
+                localStorage.setItem('ai_current_chat_v82', currentChatId);
             }
             renderChatList();
             renderActiveChat();
@@ -327,6 +329,7 @@
 
         function renderChatList() {
             const list = document.getElementById('chatList');
+            if (!list) return;
             list.innerHTML = '';
             chats.forEach(chat => {
                 const isActive = chat.id === currentChatId;
@@ -343,6 +346,7 @@
 
         function scrollToBottom(force = false) {
             const chatBox = document.getElementById('chatBox');
+            if (!chatBox) return;
             const threshold = 150;
             const isNearBottom = chatBox.scrollHeight - chatBox.scrollTop - chatBox.clientHeight < threshold;
             if (force || isNearBottom) {
@@ -379,8 +383,10 @@
 
         function renderActiveChat() {
             const chat = getCurrentChat();
-            document.getElementById('activeChatTitle').innerText = chat.title;
+            const titleEl = document.getElementById('activeChatTitle');
+            if (titleEl) titleEl.innerText = chat.title;
             const chatBox = document.getElementById('chatBox');
+            if (!chatBox) return;
             chatBox.innerHTML = '';
 
             if (chat.messages.length === 0) {
@@ -439,6 +445,7 @@
             return "Ошибка выполнения поискового запроса.";
         }
 
+        // Безопасное выполнение Python через DOM-обход
         async function executeBrowserPython(btn) {
             const code = btn.parentElement.parentElement.querySelector('code').innerText;
             btn.innerText = 'Выполняем...';
@@ -447,8 +454,20 @@
             btn.innerText = '▶ Запустить';
         }
 
-        function downloadGeneratedFile(filename, content) {
-            const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+        // Безопасное копирование кода через DOM-обход
+        function copyCodeSnippet(btn) {
+            const code = btn.parentElement.parentElement.querySelector('code').innerText;
+            navigator.clipboard.writeText(code);
+            btn.textContent = 'Скопировано!';
+            setTimeout(() => btn.textContent = 'Копировать', 2000);
+        }
+
+        // Безопасное скачивание блока кода как файл
+        function downloadCodeSnippet(btn) {
+            const code = btn.parentElement.parentElement.querySelector('code').innerText;
+            const filename = prompt("Введите имя файла для скачивания:", "snippet.txt");
+            if (!filename) return;
+            const blob = new Blob([code], { type: 'text/plain;charset=utf-8' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -522,11 +541,226 @@
             const memories = await MemoryDB.getAll();
             const memoryContext = memories.length > 0 ? `\nДолгосрочная память:\n` + memories.map(m => `- ${m.fact}`).join('\n') : '';
 
-            let fullSystemPrompt = `Сегодня: ${new Date().toLocaleDateString('ru-RU')}. ${systemPrompt}${memoryContext}`;
+            let fullSystemPrompt = `Сегодня: ${new Date().toLocaleDateString('ru-RU')}. ${systemPrompt} ${memoryContext}`;
             if (useMultiAgent) {
-                fullSystemPrompt += `\n[МУЛЬТИАГЕНТНЫЙ РЕЖИМ]. Работает команда (Planner, Researcher, Synthesizer). Проведи декомпозицию, исследуй вопрос, подготовь системный структурированный ответ. Если готово исследование/файл — заверни его в блок с именем файла, например \`\`\`markdown:filename.md`;
+                fullSystemPrompt += `\n[МУЛЬТИАГЕНТНЫЙ РЕЖИМ]. Работает команда (Planner, Researcher, Synthesizer). Проведи декомпозицию, исследуй вопрос, подготовь структурированный отчет и оформляй ключевой код или результаты в блоки кода с возможностью скачивания.`;
             }
 
             const trimmedHistory = chat.messages.slice(-20).map(m => ({
                 role: m.role,
-                content: m
+                content: m.content || "",
+                ...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {}),
+                ...(m.tool_calls ? { tool_calls: m.tool_calls } : {})
+            }));
+
+            const apiMessages = [{ role: 'system', content: fullSystemPrompt }, ...trimmedHistory];
+
+            let tools = undefined;
+            if (useSearch) {
+                tools = [{
+                    type: "function",
+                    function: {
+                        name: "web_search",
+                        description: "Поиск актуальной информации в интернете через Tavily.",
+                        parameters: {
+                            type: "object",
+                            properties: { query: { type: "string" } },
+                            required: ["query"]
+                        }
+                    }
+                }];
+            }
+
+            const headers = { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' };
+            if (baseUrl.includes('ngrok')) headers['ngrok-skip-browser-warning'] = '1';
+
+            let attempts = 0;
+            let success = false;
+
+            while (attempts < 3 && !success) {
+                try {
+                    const reqBody = {
+                        model: modelName,
+                        messages: apiMessages,
+                        stream: true
+                    };
+                    if (tools) reqBody.tools = tools;
+
+                    const response = await fetch(`${baseUrl}/chat/completions`, {
+                        method: 'POST',
+                        headers: headers,
+                        body: JSON.stringify(reqBody),
+                        signal: abortController.signal
+                    });
+
+                    if (response.status === 429) {
+                        attempts++;
+                        await new Promise(r => setTimeout(r, 2000 * attempts));
+                        continue;
+                    }
+
+                    if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+
+                    success = true;
+                    await handleStreamResponse(response, chat, toolDepth, cacheKey);
+
+                } catch (err) {
+                    if (err.name === 'AbortError') break;
+                    attempts++;
+                    if (attempts >= 3) {
+                        hideSearchStatus();
+                        chat.messages.push({ role: 'assistant', content: `❌ Ошибка: ${err.message}`, error: true });
+                        updateState([...chats]);
+                    } else {
+                        await new Promise(r => setTimeout(r, 1500));
+                    }
+                }
+            }
+
+            document.getElementById('sendBtn').classList.remove('hidden');
+            document.getElementById('stopBtn').classList.add('hidden');
+            abortController = null;
+        }
+
+        async function handleStreamResponse(response, chat, toolDepth, cacheKey) {
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let assistantMessage = null;
+            let buffer = '';
+            let toolCallsMap = {};
+
+            try {
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop();
+
+                    for (const line of lines) {
+                        const trimmed = line.trim();
+                        if (!trimmed.startsWith('data:')) continue;
+                        const dataStr = trimmed.replace('data:', '').trim();
+                        if (dataStr === '[DONE]') continue;
+
+                        try {
+                            const json = JSON.parse(dataStr);
+                            const delta = json.choices?.[0]?.delta;
+                            if (!delta) continue;
+
+                            if (delta.content) {
+                                if (!assistantMessage) {
+                                    assistantMessage = { role: 'assistant', content: '' };
+                                    chat.messages.push(assistantMessage);
+                                }
+                                assistantMessage.content += delta.content;
+                                renderActiveChat();
+                            }
+
+                            if (delta.tool_calls) {
+                                if (!assistantMessage) {
+                                    assistantMessage = { role: 'assistant', content: '' };
+                                    chat.messages.push(assistantMessage);
+                                }
+                                for (const tc of delta.tool_calls) {
+                                    const idx = tc.index ?? 0;
+                                    if (!toolCallsMap[idx]) toolCallsMap[idx] = { id: '', type: 'function', function: { name: '', arguments: '' } };
+                                    if (tc.id) toolCallsMap[idx].id = tc.id;
+                                    if (tc.function?.name) toolCallsMap[idx].function.name += tc.function.name;
+                                    if (tc.function?.arguments) toolCallsMap[idx].function.arguments += tc.function.arguments;
+                                }
+                            }
+                        } catch (e) {}
+                    }
+                }
+            } catch (err) {
+                if (err.name !== 'AbortError') throw err;
+            }
+
+            const toolCallsArray = Object.values(toolCallsMap);
+
+            if (toolCallsArray.length > 0 && assistantMessage) {
+                assistantMessage.tool_calls = toolCallsArray;
+                updateState([...chats]);
+
+                if (abortController && abortController.signal.aborted) {
+                    hideSearchStatus();
+                    return;
+                }
+
+                const tc = toolCallsArray[0];
+                if (tc && tc.function.name === 'web_search') {
+                    try {
+                        const args = JSON.parse(tc.function.arguments);
+                        showSearchStatus(`🔎 Поиск в сети: ${args.query}...`);
+
+                        const searchResult = await performTavilySearch(args.query);
+                        hideSearchStatus();
+
+                        if (abortController && abortController.signal.aborted) return;
+
+                        chat.messages.push({ role: 'tool', tool_call_id: tc.id, content: searchResult });
+                        updateState([...chats]);
+                        await sendMessage(true, toolDepth + 1);
+                    } catch (e) {
+                        hideSearchStatus();
+                        if (assistantMessage) assistantMessage.content += `\n[Ошибка поиска]`;
+                        updateState([...chats]);
+                    }
+                }
+            } else {
+                hideSearchStatus();
+                if (assistantMessage && assistantMessage.content) {
+                    CacheDB.set(cacheKey, assistantMessage.content);
+                }
+                updateState([...chats]);
+            }
+        }
+
+        function stopGeneration() {
+            if (abortController) {
+                abortController.abort();
+                hideSearchStatus();
+                document.getElementById('sendBtn').classList.remove('hidden');
+                document.getElementById('stopBtn').classList.add('hidden');
+            }
+        }
+
+        function retryLastMessage() {
+            const chat = getCurrentChat();
+            if (chat.messages.length > 0 && chat.messages[chat.messages.length - 1].error) {
+                chat.messages.pop();
+            }
+            updateState([...chats]);
+            sendMessage(true);
+        }
+
+        function exportChats() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(chats));
+            const dlAnchorElem = document.createElement('a');
+            dlAnchorElem.setAttribute("href", dataStr);
+            dlAnchorElem.setAttribute("download", `ai_chats_v82_${Date.now()}.json`);
+            dlAnchorElem.click();
+        }
+
+        function importChats(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const imported = JSON.parse(e.target.result);
+                    if (Array.isArray(imported) && imported.length > 0) {
+                        updateState(imported, imported[0].id);
+                        alert('Чаты импортированы!');
+                    }
+                } catch (err) {
+                    alert('Ошибка чтения JSON файла.');
+                }
+            };
+            reader.readAsText(file);
+        }
+    </script>
+</body>
+</html>
