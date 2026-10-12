@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI Mobile Agent v6</title>
+    <title>AI Mobile Agent v7</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Marked.js для рендеринга Markdown -->
@@ -125,8 +125,8 @@
             }
         };
 
-        let chats = Storage.get('ai_chats_v6', [{ id: 'default', title: 'Новый чат', messages: [] }]);
-        let currentChatId = Storage.get('ai_current_chat_v6', chats[0].id);
+        let chats = Storage.get('ai_chats_v7', [{ id: 'default', title: 'Новый чат', messages: [] }]);
+        let currentChatId = Storage.get('ai_current_chat_v7', chats[0].id);
         let abortController = null;
 
         const DEFAULT_SYSTEM = "Ты интеллектуальный автономный ИИ-ассистент. У тебя есть инструмент web_search для поиска свежей информации в интернете. Активно используй его при необходимости.";
@@ -150,7 +150,7 @@
         window.onload = () => {
             document.getElementById('baseUrl').value = Storage.get('ai_base_url', 'https://generativelanguage.googleapis.com/v1beta/openai');
             document.getElementById('apiKey').value = Storage.get('ai_api_key', '');
-            document.getElementById('modelName').value = Storage.get('ai_model_name', 'gemini-2.5-flash');
+            document.getElementById('modelName').value = Storage.get('ai_model_name', 'gemini-3.8-flash'); // Обновлено на актуальную модель
             document.getElementById('tavilyKey').value = Storage.get('ai_tavily_key', '');
             document.getElementById('systemPromptInput').value = Storage.get('ai_system_prompt', DEFAULT_SYSTEM);
             document.getElementById('tempInput').value = Storage.get('ai_temp', '0.7');
@@ -169,11 +169,11 @@
         function updateState(newChats, newCurrentId) {
             if (newChats) {
                 chats = newChats;
-                Storage.set('ai_chats_v6', chats);
+                Storage.set('ai_chats_v7', chats);
             }
             if (newCurrentId) {
                 currentChatId = newCurrentId;
-                Storage.set('ai_current_chat_v6', currentChatId);
+                Storage.set('ai_current_chat_v7', currentChatId);
             }
             renderChatList();
             renderActiveChat();
@@ -394,7 +394,7 @@
             let baseUrl = Storage.get('ai_base_url', 'https://generativelanguage.googleapis.com/v1beta/openai');
             if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
 
-            const modelName = Storage.get('ai_model_name', 'gemini-2.5-flash');
+            const modelName = Storage.get('ai_model_name', 'gemini-3.8-flash');
             const systemPrompt = Storage.get('ai_system_prompt', DEFAULT_SYSTEM);
             const temperature = parseFloat(Storage.get('ai_temp', '0.7'));
             const maxTokens = parseInt(Storage.get('ai_max_tokens', '2048'));
@@ -426,13 +426,11 @@
                 }
             }];
 
-            // Безопасное формирование заголовков без блокировки CORS
             const headers = {
                 'Authorization': `Bearer ${apiKey}`,
                 'Content-Type': 'application/json'
             };
 
-            // Заголовок ngrok добавляется ТОЛЬКО для ngrok URL
             if (baseUrl.includes('ngrok')) {
                 headers['ngrok-skip-browser-warning'] = '1';
             }
@@ -616,7 +614,7 @@
             const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(chats));
             const dlAnchorElem = document.createElement('a');
             dlAnchorElem.setAttribute("href", dataStr);
-            dlAnchorElem.setAttribute("download", `ai_chats_v6_${Date.now()}.json`);
+            dlAnchorElem.setAttribute("download", `ai_chats_v7_${Date.now()}.json`);
             dlAnchorElem.click();
         }
 
