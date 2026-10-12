@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI Mobile Agent v8.3</title>
+    <title>AI Mobile Agent v8.5</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Marked.js для рендеринга Markdown -->
@@ -119,7 +119,7 @@
         const initDB = () => {
             return new Promise((resolve) => {
                 try {
-                    const request = indexedDB.open('AI_Agent_DB_v83', 1);
+                    const request = indexedDB.open('AI_Agent_DB_v85', 1);
                     request.onerror = () => resolve(null);
                     request.onsuccess = (e) => { db = e.target.result; resolve(db); };
                     request.onupgradeneeded = (e) => {
@@ -181,11 +181,17 @@
         async function initPyodide() {
             try {
                 pyodideInstance = await loadPyodide();
-                document.getElementById('pyStatus').innerText = 'Py: готов';
-                document.getElementById('pyStatus').className = 'text-[10px] bg-green-600/30 text-green-300 px-2 py-0.5 rounded';
+                const statusEl = document.getElementById('pyStatus');
+                if (statusEl) {
+                    statusEl.innerText = 'Py: готов';
+                    statusEl.className = 'text-[10px] bg-green-600/30 text-green-300 px-2 py-0.5 rounded';
+                }
             } catch (e) {
-                document.getElementById('pyStatus').innerText = 'Py: ошибка';
-                document.getElementById('pyStatus').className = 'text-[10px] bg-red-600/30 text-red-300 px-2 py-0.5 rounded';
+                const statusEl = document.getElementById('pyStatus');
+                if (statusEl) {
+                    statusEl.innerText = 'Py: ошибка';
+                    statusEl.className = 'text-[10px] bg-red-600/30 text-red-300 px-2 py-0.5 rounded';
+                }
             }
         }
 
@@ -199,8 +205,8 @@
             }
         }
 
-        let chats = JSON.parse(localStorage.getItem('ai_chats_v83')) || [{ id: 'default', title: 'Новый чат', messages: [] }];
-        let currentChatId = localStorage.getItem('ai_current_chat_v83') || chats[0].id;
+        let chats = JSON.parse(localStorage.getItem('ai_chats_v85')) || [{ id: 'default', title: 'Новый чат', messages: [] }];
+        let currentChatId = localStorage.getItem('ai_current_chat_v85') || chats[0].id;
         let abortController = null;
 
         const DEFAULT_SYSTEM = "Ты автономный ИИ-ассистент и мультиагентная система. Ты умеешь искать в сети и выполнять код на Python прямо в браузере. Выдавай структурированные отчеты.";
@@ -258,11 +264,11 @@
         function updateState(newChats, newCurrentId) {
             if (newChats) {
                 chats = newChats;
-                localStorage.setItem('ai_chats_v83', JSON.stringify(chats));
+                localStorage.setItem('ai_chats_v85', JSON.stringify(chats));
             }
             if (newCurrentId) {
                 currentChatId = newCurrentId;
-                localStorage.setItem('ai_current_chat_v83', currentChatId);
+                localStorage.setItem('ai_current_chat_v85', currentChatId);
             }
             renderChatList();
             renderActiveChat();
@@ -417,12 +423,15 @@
 
         function showSearchStatus(text) {
             const statusEl = document.getElementById('searchStatus');
-            document.getElementById('statusText').innerText = text;
-            statusEl.classList.remove('hidden');
+            if (statusEl) {
+                document.getElementById('statusText').innerText = text;
+                statusEl.classList.remove('hidden');
+            }
         }
 
         function hideSearchStatus() {
-            document.getElementById('searchStatus').classList.add('hidden');
+            const statusEl = document.getElementById('searchStatus');
+            if (statusEl) statusEl.classList.add('hidden');
         }
 
         async function performTavilySearch(query) {
@@ -430,7 +439,6 @@
             if (!tavilyKey) return "Поиск не настроен (нет ключа Tavily).";
 
             try {
-                // Используем CORS-прокси для Tavily
                 const targetUrl = 'https://api.tavily.com/search';
                 const proxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(targetUrl);
 
@@ -487,7 +495,7 @@
             }
 
             const input = document.getElementById('userInput');
-            const text = input.value.trim();
+            const text = input ? input.value.trim() : '';
             const chat = getCurrentChat();
 
             if (!text && !isRetry) return;
@@ -504,7 +512,7 @@
                     chat.title = text.slice(0, 30) + (text.length > 30 ? '...' : '');
                 }
                 chat.messages.push({ role: 'user', content: text });
-                input.value = '';
+                if (input) input.value = '';
                 
                 if (text.length > 15 && Math.random() < 0.25) {
                     MemoryDB.add(`Пользователь отметил: "${text.slice(0, 60)}"`);
@@ -513,8 +521,10 @@
 
             updateState([...chats]);
 
-            document.getElementById('sendBtn').classList.add('hidden');
-            document.getElementById('stopBtn').classList.remove('hidden');
+            const sendBtn = document.getElementById('sendBtn');
+            const stopBtn = document.getElementById('stopBtn');
+            if (sendBtn) sendBtn.classList.add('hidden');
+            if (stopBtn) stopBtn.classList.remove('hidden');
 
             abortController = new AbortController();
 
@@ -523,8 +533,10 @@
 
             const modelName = localStorage.getItem('ai_model_name') || 'gemini-3.8-flash';
             const systemPrompt = localStorage.getItem('ai_system_prompt') || DEFAULT_SYSTEM;
-            const useSearch = document.getElementById('toggleSearch').checked;
-            const useMultiAgent = document.getElementById('toggleMultiAgent').checked;
+            const searchToggle = document.getElementById('toggleSearch');
+            const multiAgentToggle = document.getElementById('toggleMultiAgent');
+            const useSearch = searchToggle ? searchToggle.checked : false;
+            const useMultiAgent = multiAgentToggle ? multiAgentToggle.checked : false;
 
             const cacheKey = `${modelName}_${text}_${useSearch}_${useMultiAgent}`;
             if (!isRetry && toolDepth === 0) {
@@ -532,8 +544,8 @@
                 if (cachedResp) {
                     chat.messages.push({ role: 'assistant', content: cachedResp + "\n\n*(из кэша)*" });
                     updateState([...chats]);
-                    document.getElementById('sendBtn').classList.add('hidden');
-                    document.getElementById('stopBtn').classList.add('hidden');
+                    if (sendBtn) sendBtn.classList.remove('hidden');
+                    if (stopBtn) stopBtn.classList.add('hidden');
                     abortController = null;
                     return;
                 }
@@ -575,7 +587,6 @@
             const headers = { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' };
             if (baseUrl.includes('ngrok')) headers['ngrok-skip-browser-warning'] = '1';
 
-            // Используем CORS-прокси для обхода ограничения браузера (Google 405)
             const targetApiUrl = `${baseUrl}/chat/completions`;
             const finalApiUrl = 'https://corsproxy.io/?' + encodeURIComponent(targetApiUrl);
 
@@ -587,7 +598,7 @@
                     const reqBody = {
                         model: modelName,
                         messages: apiMessages,
-                        stream: true
+                        stream: false
                     };
                     if (tools) reqBody.tools = tools;
 
@@ -606,8 +617,9 @@
 
                     if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`);
 
+                    const data = await response.json();
                     success = true;
-                    await handleStreamResponse(response, chat, toolDepth, cacheKey);
+                    await handleJsonResponse(data, chat, toolDepth, cacheKey);
 
                 } catch (err) {
                     if (err.name === 'AbortError') break;
@@ -622,71 +634,26 @@
                 }
             }
 
-            document.getElementById('sendBtn').classList.remove('hidden');
-            document.getElementById('stopBtn').classList.add('hidden');
+            if (sendBtn) sendBtn.classList.remove('hidden');
+            if (stopBtn) stopBtn.classList.add('hidden');
             abortController = null;
         }
 
-        async function handleStreamResponse(response, chat, toolDepth, cacheKey) {
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            let assistantMessage = null;
-            let buffer = '';
-            let toolCallsMap = {};
-
-            try {
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-
-                    buffer += decoder.decode(value, { stream: true });
-                    const lines = buffer.split('\n');
-                    buffer = lines.pop();
-
-                    for (const line of lines) {
-                        const trimmed = line.trim();
-                        if (!trimmed.startsWith('data:')) continue;
-                        const dataStr = trimmed.replace('data:', '').trim();
-                        if (dataStr === '[DONE]') continue;
-
-                        try {
-                            const json = JSON.parse(dataStr);
-                            const delta = json.choices?.[0]?.delta;
-                            if (!delta) continue;
-
-                            if (delta.content) {
-                                if (!assistantMessage) {
-                                    assistantMessage = { role: 'assistant', content: '' };
-                                    chat.messages.push(assistantMessage);
-                                }
-                                assistantMessage.content += delta.content;
-                                renderActiveChat();
-                            }
-
-                            if (delta.tool_calls) {
-                                if (!assistantMessage) {
-                                    assistantMessage = { role: 'assistant', content: '' };
-                                    chat.messages.push(assistantMessage);
-                                }
-                                for (const tc of delta.tool_calls) {
-                                    const idx = tc.index ?? 0;
-                                    if (!toolCallsMap[idx]) toolCallsMap[idx] = { id: '', type: 'function', function: { name: '', arguments: '' } };
-                                    if (tc.id) toolCallsMap[idx].id = tc.id;
-                                    if (tc.function?.name) toolCallsMap[idx].function.name += tc.function.name;
-                                    if (tc.function?.arguments) toolCallsMap[idx].function.arguments += tc.function.arguments;
-                                }
-                            }
-                        } catch (e) {}
-                    }
-                }
-            } catch (err) {
-                if (err.name !== 'AbortError') throw err;
+        async function handleJsonResponse(data, chat, toolDepth, cacheKey) {
+            const choice = data.choices?.[0];
+            if (!choice) {
+                hideSearchStatus();
+                updateState([...chats]);
+                return;
             }
 
-            const toolCallsArray = Object.values(toolCallsMap);
+            const message = choice.message;
+            let assistantMessage = { role: 'assistant', content: message.content || '' };
+            chat.messages.push(assistantMessage);
+            renderActiveChat();
 
-            if (toolCallsArray.length > 0 && assistantMessage) {
-                assistantMessage.tool_calls = toolCallsArray;
+            if (message.tool_calls && message.tool_calls.length > 0) {
+                assistantMessage.tool_calls = message.tool_calls;
                 updateState([...chats]);
 
                 if (abortController && abortController.signal.aborted) {
@@ -694,7 +661,7 @@
                     return;
                 }
 
-                const tc = toolCallsArray[0];
+                const tc = message.tool_calls[0];
                 if (tc && tc.function.name === 'web_search') {
                     try {
                         const args = JSON.parse(tc.function.arguments);
@@ -710,13 +677,13 @@
                         await sendMessage(true, toolDepth + 1);
                     } catch (e) {
                         hideSearchStatus();
-                        if (assistantMessage) assistantMessage.content += `\n[Ошибка поиска]`;
+                        assistantMessage.content += `\n[Ошибка поиска]`;
                         updateState([...chats]);
                     }
                 }
             } else {
                 hideSearchStatus();
-                if (assistantMessage && assistantMessage.content) {
+                if (assistantMessage.content) {
                     CacheDB.set(cacheKey, assistantMessage.content);
                 }
                 updateState([...chats]);
@@ -727,8 +694,10 @@
             if (abortController) {
                 abortController.abort();
                 hideSearchStatus();
-                document.getElementById('sendBtn').classList.remove('hidden');
-                document.getElementById('stopBtn').classList.add('hidden');
+                const sendBtn = document.getElementById('sendBtn');
+                const stopBtn = document.getElementById('stopBtn');
+                if (sendBtn) sendBtn.classList.remove('hidden');
+                if (stopBtn) stopBtn.classList.add('hidden');
             }
         }
 
@@ -745,7 +714,7 @@
             const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(chats));
             const dlAnchorElem = document.createElement('a');
             dlAnchorElem.setAttribute("href", dataStr);
-            dlAnchorElem.setAttribute("download", `ai_chats_v83_${Date.now()}.json`);
+            dlAnchorElem.setAttribute("download", `ai_chats_v85_${Date.now()}.json`);
             dlAnchorElem.click();
         }
 
