@@ -1,740 +1,957 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI Mobile Agent v8.7</title>
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Marked.js для рендеринга Markdown -->
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <!-- DOMPurify для защиты от XSS -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.8/purify.min.js"></script>
-    <!-- Pyodide для запуска Python в браузере -->
-    <script src="https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js"></script>
-    <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; height: 100dvh; overflow: hidden; }
-        .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 1rem); }
-        pre code { display: block; overflow-x: auto; background: #090d16; padding: 0.75rem; border-radius: 0.5rem; margin-top: 0.5rem; margin-bottom: 0.5rem; }
-        p { margin-bottom: 0.5rem; }
-        p:last-child { margin-bottom: 0; }
-        ul { list-style-type: disc; padding-left: 1.25rem; margin-bottom: 0.5rem; }
-        ol { list-style-type: decimal; padding-left: 1.25rem; margin-bottom: 0.5rem; }
-    </style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#111827">
+  <meta name="color-scheme" content="dark">
+  <title>AI Mobile Agent v9.0</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked@18.0.14/marked.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.4.16/purify.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.29.5/full/pyodide.js"></script>
+  <style>
+    :root { color-scheme: dark; }
+    html, body { height: 100%; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; height: 100dvh; min-height: 0; overflow: hidden; }
+    button, input, textarea { font: inherit; }
+    button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid #60a5fa; outline-offset: 2px; }
+    .safe-bottom { padding-bottom: max(env(safe-area-inset-bottom), .75rem); }
+    #chatBox { overscroll-behavior: contain; overflow-wrap: anywhere; }
+    #userInput { line-height: 1.45; }
+    .assistant-content p { margin: 0 0 .65rem; }
+    .assistant-content p:last-child { margin-bottom: 0; }
+    .assistant-content ul, .assistant-content ol { padding-left: 1.35rem; margin: .4rem 0 .75rem; }
+    .assistant-content ul { list-style: disc; }
+    .assistant-content ol { list-style: decimal; }
+    .assistant-content blockquote { border-left: 3px solid #4b5563; padding-left: .8rem; color: #d1d5db; margin: .6rem 0; }
+    .assistant-content table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; margin: .7rem 0; }
+    .assistant-content th, .assistant-content td { border: 1px solid #4b5563; padding: .35rem .55rem; }
+    .assistant-content a { color: #93c5fd; text-decoration: underline; overflow-wrap: anywhere; }
+    .assistant-content pre { max-width: 100%; overflow-x: auto; }
+    .code-block pre { background: #090d16; padding: .8rem; border-radius: .6rem; margin: .5rem 0; }
+    .code-block code { white-space: pre; }
+    .code-actions { display: flex; flex-wrap: wrap; gap: .25rem; position: absolute; top: .55rem; right: .55rem; }
+    .code-action { background: #374151; color: #fff; border-radius: .35rem; padding: .25rem .45rem; font-size: .72rem; }
+    .code-action:hover { background: #4b5563; }
+    .code-action[data-action="run-python"] { background: #166534; }
+    .code-action[data-action="download-code"] { background: #1d4ed8; }
+    .code-output { white-space: pre-wrap; overflow-wrap: anywhere; margin-top: .5rem; padding: .6rem; border: 1px solid #374151; border-radius: .5rem; background: #111827; }
+    .chat-bubble { min-width: 0; overflow-wrap: anywhere; }
+    .memory-item { display: flex; gap: .45rem; align-items: flex-start; padding: .3rem 0; }
+    .memory-item span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+    .memory-item button { color: #9ca3af; padding: 0 .2rem; }
+    .memory-item button:hover { color: #f87171; }
+    #settingsModal, #sidebar { overscroll-behavior: contain; }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; } }
+  </style>
 </head>
 <body class="bg-gray-900 text-white flex flex-col">
-
-    <!-- Боковая панель -->
-    <div id="sidebar" class="fixed inset-y-0 left-0 z-50 w-72 bg-gray-950 border-r border-gray-800 transform -translate-x-full transition-transform duration-300 flex flex-col">
-        <div class="p-4 border-b border-gray-800 flex justify-between items-center">
-            <h2 class="font-bold text-sm">💬 Диалоги и Память</h2>
-            <button onclick="toggleSidebar()" class="text-gray-400 hover:text-white text-lg p-1">✕</button>
-        </div>
-        <div class="p-3 space-y-2">
-            <button onclick="createNewChat()" class="w-full bg-blue-600 hover:bg-blue-500 py-2 rounded-lg font-bold text-sm">+ Новый чат</button>
-            <button onclick="clearCurrentChat()" class="w-full bg-gray-800 hover:bg-gray-700 text-gray-300 py-1.5 rounded-lg text-xs">🗑 Очистить чат</button>
-        </div>
-        <div class="px-3 py-1">
-            <span class="text-xs text-gray-400 font-semibold">🧠 Долгосрочная память:</span>
-            <div id="memoryBox" class="mt-1 bg-gray-900 p-2 rounded text-xs text-gray-300 max-h-32 overflow-y-auto border border-gray-800">Нет сохраненных фактов.</div>
-        </div>
-        <div id="chatList" class="flex-1 overflow-y-auto p-3 space-y-2 text-sm"></div>
-        <div class="p-3 border-t border-gray-800 flex gap-2">
-            <button onclick="exportChats()" class="flex-1 bg-gray-800 hover:bg-gray-700 py-1.5 rounded text-xs">Экспорт</button>
-            <label class="flex-1 bg-gray-800 hover:bg-gray-700 py-1.5 rounded text-xs text-center cursor-pointer">
-                Импорт <input type="file" onchange="importChats(event)" class="hidden" accept=".json">
-            </label>
-        </div>
+  <!-- Навигационная панель -->
+  <aside id="sidebar" aria-label="Диалоги и память" class="fixed inset-y-0 left-0 z-50 w-72 max-w-[88vw] bg-gray-950 border-r border-gray-800 -translate-x-full transition-transform duration-300 flex flex-col">
+    <div class="p-4 border-b border-gray-800 flex justify-between items-center">
+      <h2 class="font-bold text-sm">💬 Диалоги и память</h2>
+      <button type="button" data-action="close-sidebar" aria-label="Закрыть меню" class="text-gray-400 hover:text-white text-lg p-1">✕</button>
     </div>
-
-    <div id="sidebarOverlay" onclick="toggleSidebar()" class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden"></div>
-
-    <!-- Настройки -->
-    <div id="settingsModal" class="hidden fixed inset-0 bg-black bg-opacity-80 p-4 flex flex-col justify-center z-50 overflow-y-auto">
-        <div class="bg-gray-800 p-5 rounded-2xl max-w-sm mx-auto w-full border border-gray-700 space-y-3 my-auto max-h-[90vh] overflow-y-auto">
-            <h2 class="text-lg font-bold">⚙️ Настройки</h2>
-            
-            <label class="block text-xs text-gray-400">Base URL:</label>
-            <input type="text" id="baseUrl" class="w-full p-2.5 bg-gray-900 rounded border border-gray-700 text-sm outline-none">
-            
-            <label class="block text-xs text-gray-400">API Key:</label>
-            <input type="password" id="apiKey" class="w-full p-2.5 bg-gray-900 rounded border border-gray-700 text-sm outline-none">
-            
-            <label class="block text-xs text-gray-400">Модель:</label>
-            <input type="text" id="modelName" class="w-full p-2.5 bg-gray-900 rounded border border-gray-700 text-sm outline-none">
-
-            <label class="block text-xs text-gray-400">Tavily Search API Key:</label>
-            <input type="password" id="tavilyKey" class="w-full p-2.5 bg-gray-900 rounded border border-gray-700 text-sm outline-none">
-
-            <label class="block text-xs text-gray-400">Системный промпт:</label>
-            <textarea id="systemPromptInput" rows="3" class="w-full p-2.5 bg-gray-900 rounded border border-gray-700 text-sm outline-none resize-none"></textarea>
-
-            <button onclick="saveSettings()" class="w-full bg-blue-600 hover:bg-blue-500 py-2.5 rounded font-bold text-sm">Сохранить</button>
-            <button onclick="toggleSettings()" class="w-full bg-gray-700 hover:bg-gray-600 py-2 rounded text-xs text-gray-300">Закрыть</button>
-        </div>
+    <div class="p-3 space-y-2">
+      <button type="button" data-action="new-chat" class="w-full bg-blue-600 hover:bg-blue-500 py-2 rounded-lg font-bold text-sm">＋ Новый чат</button>
+      <button type="button" data-action="clear-chat" class="w-full bg-gray-800 hover:bg-gray-700 text-gray-300 py-1.5 rounded-lg text-xs">🗑 Очистить чат</button>
     </div>
-
-    <!-- Шапка -->
-    <header class="p-3 bg-gray-800 border-b border-gray-700 flex justify-between items-center shrink-0">
-        <button onclick="toggleSidebar()" class="text-xl px-2 py-1">☰</button>
-        <h1 id="activeChatTitle" class="font-bold text-sm truncate max-w-[180px]">Новый чат</h1>
-        <div class="flex items-center gap-2">
-            <span id="pyStatus" class="text-[10px] bg-yellow-600/30 text-yellow-300 px-2 py-0.5 rounded" title="Загрузка Python...">Py: ждем</span>
-            <button onclick="toggleSettings()" class="text-xs bg-gray-700 px-2.5 py-1.5 rounded">⚙️</button>
-        </div>
-    </header>
-
-    <!-- Переключатели режимов -->
-    <div class="bg-gray-950 px-3 py-2 border-b border-gray-800 flex justify-around text-xs shrink-0">
-        <label class="flex items-center gap-1.5 cursor-pointer text-gray-300">
-            <input type="checkbox" id="toggleSearch" class="rounded bg-gray-800 border-gray-700 text-blue-600 focus:ring-0">
-            <span>🌐 Веб-поиск</span>
-        </label>
-        <label class="flex items-center gap-1.5 cursor-pointer text-gray-300">
-            <input type="checkbox" id="toggleMultiAgent" class="rounded bg-gray-800 border-gray-700 text-blue-600 focus:ring-0">
-            <span>🤖 Мультиагенты</span>
-        </label>
+    <section class="px-3 py-1" aria-label="Долгосрочная память">
+      <label for="memoryInput" class="text-xs text-gray-400 font-semibold">🧠 Долгосрочная память</label>
+      <div class="flex gap-1 mt-1">
+        <input id="memoryInput" type="text" maxlength="500" placeholder="Факт, который нужно запомнить" class="min-w-0 flex-1 bg-gray-900 border border-gray-700 rounded p-2 text-xs">
+        <button type="button" data-action="save-memory" class="bg-blue-700 hover:bg-blue-600 px-2 rounded text-xs" aria-label="Сохранить факт">＋</button>
+      </div>
+      <div id="memoryBox" class="mt-2 bg-gray-900 p-2 rounded text-xs text-gray-300 max-h-36 overflow-y-auto border border-gray-800" aria-live="polite">Нет сохранённых фактов.</div>
+    </section>
+    <div id="chatList" class="flex-1 overflow-y-auto p-3 space-y-2 text-sm" aria-label="Список чатов"></div>
+    <div class="p-3 border-t border-gray-800 flex gap-2">
+      <button type="button" data-action="export-chats" class="flex-1 bg-gray-800 hover:bg-gray-700 py-1.5 rounded text-xs">Экспорт</button>
+      <label class="flex-1 bg-gray-800 hover:bg-gray-700 py-1.5 rounded text-xs text-center cursor-pointer">
+        Импорт <input id="importFile" type="file" class="hidden" accept="application/json,.json">
+      </label>
     </div>
+  </aside>
+  <div id="sidebarOverlay" class="fixed inset-0 bg-black/60 z-40 hidden" aria-hidden="true"></div>
 
-    <!-- Чат -->
-    <div id="chatBox" class="flex-1 overflow-y-auto p-4 space-y-4 text-sm"></div>
-
-    <!-- Статус -->
-    <div id="searchStatus" class="hidden px-4 py-2 bg-gray-800/80 border-t border-gray-700 text-xs text-blue-400 flex items-center gap-2 shrink-0">
-        <span class="animate-spin">⏳</span> <span id="statusText">Агенты выполняют задачу...</span>
+  <!-- Настройки -->
+  <div id="settingsModal" class="hidden fixed inset-0 bg-black/80 p-4 z-50 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+    <div class="bg-gray-800 p-5 rounded-2xl max-w-sm mx-auto w-full border border-gray-700 space-y-3 my-auto max-h-[90dvh] overflow-y-auto">
+      <h2 id="settingsTitle" class="text-lg font-bold">⚙️ Настройки</h2>
+      <label for="baseUrl" class="block text-xs text-gray-400">Base URL (без /chat/completions)</label>
+      <input type="url" id="baseUrl" autocomplete="url" class="w-full p-2.5 bg-gray-900 rounded border border-gray-700 text-sm outline-none">
+      <label for="apiKey" class="block text-xs text-gray-400">API Key</label>
+      <input type="password" id="apiKey" autocomplete="off" class="w-full p-2.5 bg-gray-900 rounded border border-gray-700 text-sm outline-none">
+      <label for="modelName" class="block text-xs text-gray-400">Модель</label>
+      <input type="text" id="modelName" autocomplete="off" class="w-full p-2.5 bg-gray-900 rounded border border-gray-700 text-sm outline-none">
+      <label for="tavilyKey" class="block text-xs text-gray-400">Tavily Search API Key</label>
+      <input type="password" id="tavilyKey" autocomplete="off" class="w-full p-2.5 bg-gray-900 rounded border border-gray-700 text-sm outline-none">
+      <label for="systemPromptInput" class="block text-xs text-gray-400">Системный промпт</label>
+      <textarea id="systemPromptInput" rows="4" class="w-full p-2.5 bg-gray-900 rounded border border-gray-700 text-sm outline-none resize-y"></textarea>
+      <p class="text-[11px] leading-relaxed text-gray-400">Ключи хранятся в localStorage этого браузера. Не сохраняйте их на чужом или общем устройстве. Запросы отправляются напрямую провайдерам, без стороннего CORS-прокси.</p>
+      <button type="button" data-action="save-settings" class="w-full bg-blue-600 hover:bg-blue-500 py-2.5 rounded font-bold text-sm">Сохранить</button>
+      <button type="button" data-action="close-settings" class="w-full bg-gray-700 hover:bg-gray-600 py-2 rounded text-xs text-gray-300">Закрыть</button>
     </div>
+  </div>
 
-    <!-- Поле ввода -->
-    <div class="p-3 bg-gray-800 border-t border-gray-700 shrink-0 safe-bottom">
-        <div id="inputArea" class="flex gap-2 items-center">
-            <textarea id="userInput" rows="1" placeholder="Введите сообщение..." class="flex-1 bg-gray-900 border border-gray-700 p-3 rounded-xl text-base outline-none resize-none max-h-32" onkeydown="handleKeyDown(event)"></textarea>
-            <button id="sendBtn" onclick="sendMessage()" class="bg-blue-600 hover:bg-blue-500 px-4 py-3 rounded-xl font-bold text-sm shrink-0">➤</button>
-            <button id="stopBtn" onclick="stopGeneration()" class="hidden bg-red-600 hover:bg-red-500 px-4 py-3 rounded-xl font-bold text-sm shrink-0">⏹</button>
-        </div>
+  <header class="p-3 bg-gray-800 border-b border-gray-700 flex justify-between items-center shrink-0 gap-2">
+    <button type="button" data-action="toggle-sidebar" aria-label="Открыть меню" class="text-xl px-2 py-1">☰</button>
+    <h1 id="activeChatTitle" class="font-bold text-sm truncate flex-1 text-center">Новый чат</h1>
+    <div class="flex items-center gap-2 shrink-0">
+      <span id="pyStatus" class="text-[10px] bg-yellow-600/30 text-yellow-300 px-2 py-0.5 rounded" title="Загрузка Python...">Py: загрузка</span>
+      <button type="button" data-action="toggle-settings" aria-label="Настройки" class="text-xs bg-gray-700 px-2.5 py-1.5 rounded">⚙️</button>
     </div>
+  </header>
 
-    <script>
-        // IndexedDB
-        let db = null;
-        const initDB = () => {
-            return new Promise((resolve) => {
-                try {
-                    const request = indexedDB.open('AI_Agent_DB_v87', 1);
-                    request.onerror = () => resolve(null);
-                    request.onsuccess = (e) => { db = e.target.result; resolve(db); };
-                    request.onupgradeneeded = (e) => {
-                        const database = e.target.result;
-                        if (!database.objectStoreNames.contains('cache')) database.createObjectStore('cache');
-                        if (!database.objectStoreNames.contains('memory')) database.createObjectStore('memory');
-                    };
-                } catch (err) {
-                    resolve(null);
-                }
-            });
+  <div class="bg-gray-950 px-3 py-2 border-b border-gray-800 flex justify-around text-xs shrink-0 gap-3">
+    <label class="flex items-center gap-1.5 cursor-pointer text-gray-300" title="Поиск через Tavily; нужен ключ API">
+      <input type="checkbox" id="toggleSearch" class="rounded bg-gray-800 border-gray-700 text-blue-600 focus:ring-0">
+      <span>🌐 Веб-поиск</span>
+    </label>
+    <label class="flex items-center gap-1.5 cursor-pointer text-gray-300" title="Один запрос с дополнительными ролями; не запускает независимые модели">
+      <input type="checkbox" id="toggleMultiAgent" class="rounded bg-gray-800 border-gray-700 text-blue-600 focus:ring-0">
+      <span>🤖 Мультиагентный стиль</span>
+    </label>
+  </div>
+
+  <main id="chatBox" class="flex-1 min-h-0 overflow-y-auto p-4 space-y-4 text-sm" aria-live="polite" aria-label="Сообщения чата"></main>
+  <div id="searchStatus" class="hidden px-4 py-2 bg-gray-800/80 border-t border-gray-700 text-xs text-blue-300 flex items-center gap-2 shrink-0" role="status" aria-live="polite">
+    <span class="animate-spin" aria-hidden="true">⏳</span><span id="statusText">Выполняется запрос...</span>
+  </div>
+  <footer class="p-3 bg-gray-800 border-t border-gray-700 shrink-0 safe-bottom">
+    <div class="flex gap-2 items-end" id="inputArea">
+      <textarea id="userInput" rows="1" maxlength="30000" placeholder="Введите сообщение..." aria-label="Сообщение" class="flex-1 min-w-0 bg-gray-900 border border-gray-700 p-3 rounded-xl text-base outline-none resize-none max-h-32" ></textarea>
+      <button id="sendBtn" type="button" data-action="send" class="bg-blue-600 hover:bg-blue-500 px-4 py-3 rounded-xl font-bold text-sm shrink-0" aria-label="Отправить сообщение">➤</button>
+      <button id="stopBtn" type="button" data-action="stop" class="hidden bg-red-600 hover:bg-red-500 px-4 py-3 rounded-xl font-bold text-sm shrink-0" aria-label="Остановить генерацию">⏹</button>
+    </div>
+  </footer>
+
+  <script>
+  (() => {
+    'use strict';
+
+    // Хранение совместимо с исходным форматом v8.7.
+    const STORAGE = {
+      chats: 'ai_chats_v87', current: 'ai_current_chat_v87',
+      baseUrl: 'ai_base_url', apiKey: 'ai_api_key', model: 'ai_model_name',
+      tavilyKey: 'ai_tavily_key', systemPrompt: 'ai_system_prompt'
+    };
+    const DEFAULT_SYSTEM = 'Ты автономный ИИ-ассистент. Отвечай ясно, проверяй предположения и выдавай структурированные отчёты. Если включён веб-поиск, используй его для актуальной информации.';
+    const DEFAULT_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/openai';
+    const DEFAULT_MODEL = 'gemini-3.8-flash';
+    const MAX_TOOL_ROUNDS = 4;
+    const MAX_CONTEXT_MESSAGES = 24;
+    const CACHE_TTL_MS = 15 * 60 * 1000;
+    const $ = (id) => document.getElementById(id);
+
+    let db = null;
+    let chats = loadChats();
+    let currentChatId = safeGet(STORAGE.current) || chats[0].id;
+    if (!chats.some((chat) => chat.id === currentChatId)) currentChatId = chats[0].id;
+    let pyodideInstance = null;
+    let activeController = null;
+    let activeChatId = null;
+    let isGenerating = false;
+    let storageWarningShown = false;
+
+    function safeGet(key) {
+      try { return localStorage.getItem(key); } catch (_) { return null; }
+    }
+    function safeSet(key, value) {
+      try { localStorage.setItem(key, value); return true; }
+      catch (error) {
+        console.error('Не удалось сохранить localStorage:', error);
+        if (!storageWarningShown) {
+          storageWarningShown = true;
+          alert('Браузер не смог сохранить данные. Экспортируйте историю и освободите место в хранилище.');
+        }
+        return false;
+      }
+    }
+    function createChat(title = 'Новый чат', messages = []) {
+      return { id: (globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`), title, messages };
+    }
+    function loadChats() {
+      try {
+        const raw = JSON.parse(localStorage.getItem(STORAGE.chats) || 'null');
+        if (!Array.isArray(raw)) return [createChat()];
+        const valid = raw.filter((item) => item && typeof item === 'object' && typeof item.id === 'string' && Array.isArray(item.messages))
+          .map((item) => ({
+            id: item.id.slice(0, 128),
+            title: typeof item.title === 'string' ? item.title.slice(0, 160) : 'Новый чат',
+            messages: item.messages.filter((m) => m && ['user', 'assistant', 'tool'].includes(m.role)).map((m) => ({
+              role: m.role,
+              content: typeof m.content === 'string' ? m.content : '',
+              ...(typeof m.tool_call_id === 'string' ? { tool_call_id: m.tool_call_id } : {}),
+              ...(Array.isArray(m.tool_calls) ? { tool_calls: m.tool_calls } : {}),
+              ...(m.error ? { error: true } : {})
+            }))
+          }));
+        return valid.length ? valid : [createChat()];
+      } catch (_) { return [createChat()]; }
+    }
+    function persistChats() {
+      safeSet(STORAGE.chats, JSON.stringify(chats));
+      safeSet(STORAGE.current, currentChatId);
+    }
+    function getCurrentChat() {
+      return chats.find((chat) => chat.id === currentChatId) || chats[0];
+    }
+
+    // IndexedDB: значения имеют явные ключи, поэтому работает и со старым store без keyPath.
+    function requestResult(request) {
+      return new Promise((resolve, reject) => {
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error || new Error('IndexedDB request failed'));
+      });
+    }
+    async function initDB() {
+      if (!('indexedDB' in window)) return null;
+      try {
+        db = await new Promise((resolve, reject) => {
+          const request = indexedDB.open('AI_Agent_DB_v87', 1);
+          request.onupgradeneeded = (event) => {
+            const database = event.target.result;
+            if (!database.objectStoreNames.contains('cache')) database.createObjectStore('cache');
+            if (!database.objectStoreNames.contains('memory')) database.createObjectStore('memory');
+          };
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error || new Error('Не удалось открыть IndexedDB'));
+          request.onblocked = () => reject(new Error('IndexedDB заблокирована другой вкладкой'));
+        });
+        db.onversionchange = () => { db.close(); db = null; };
+        return db;
+      } catch (error) {
+        console.warn('IndexedDB недоступна:', error);
+        db = null;
+        return null;
+      }
+    }
+    const CacheDB = {
+      async get(key) {
+        if (!db) return null;
+        try {
+          const tx = db.transaction('cache', 'readonly');
+          const value = await requestResult(tx.objectStore('cache').get(key));
+          if (typeof value === 'string') return value; // совместимость с кэшем v8.7
+          if (!value || typeof value.value !== 'string') return null;
+          if (value.expiresAt && value.expiresAt < Date.now()) {
+            this.delete(key);
+            return null;
+          }
+          return value.value;
+        } catch (_) { return null; }
+      },
+      async set(key, value) {
+        if (!db) return;
+        try {
+          const tx = db.transaction('cache', 'readwrite');
+          tx.objectStore('cache').put({ value, expiresAt: Date.now() + CACHE_TTL_MS }, key);
+        } catch (error) { console.warn('Не удалось сохранить кэш:', error); }
+      },
+      async delete(key) {
+        if (!db) return;
+        try { db.transaction('cache', 'readwrite').objectStore('cache').delete(key); } catch (_) {}
+      }
+    };
+    const MemoryDB = {
+      async getAll() {
+        if (!db) return [];
+        try {
+          const tx = db.transaction('memory', 'readonly');
+          const store = tx.objectStore('memory');
+          const [values, keys] = await Promise.all([requestResult(store.getAll()), requestResult(store.getAllKeys())]);
+          return values.map((item, index) => ({ ...item, id: String(item.id ?? keys[index]) }))
+            .filter((item) => typeof item.fact === 'string');
+        } catch (_) { return []; }
+      },
+      async add(fact) {
+        if (!db) throw new Error('IndexedDB недоступна в этом браузере.');
+        const id = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        const entry = { id, fact: fact.slice(0, 500), time: Date.now() };
+        await new Promise((resolve, reject) => {
+          const tx = db.transaction('memory', 'readwrite');
+          tx.objectStore('memory').put(entry, id);
+          tx.oncomplete = resolve;
+          tx.onerror = () => reject(tx.error || new Error('Не удалось сохранить факт'));
+          tx.onabort = () => reject(tx.error || new Error('Сохранение отменено'));
+        });
+        await renderMemory();
+      },
+      async delete(id) {
+        if (!db) return;
+        await new Promise((resolve, reject) => {
+          const tx = db.transaction('memory', 'readwrite');
+          tx.objectStore('memory').delete(id);
+          tx.oncomplete = resolve;
+          tx.onerror = () => reject(tx.error || new Error('Не удалось удалить факт'));
+        });
+        await renderMemory();
+      }
+    };
+
+    // Markdown: фиксированная версия Marked принимает объект токена. Если CDN недоступен,
+    // чат всё равно работает в текстовом режиме.
+    if (window.marked?.Renderer && typeof window.marked.use === 'function') {
+      const renderer = new marked.Renderer();
+      renderer.code = (token) => {
+        const code = typeof token.text === 'string' ? token.text : '';
+        const rawLang = typeof token.lang === 'string' ? token.lang.trim().split(/\s+/)[0] : '';
+        const language = /^[a-zA-Z0-9_+-]{1,32}$/.test(rawLang) ? rawLang.toLowerCase() : '';
+        const runButton = language === 'python'
+          ? '<button type="button" class="code-action" data-action="run-python">▶ Запустить</button>' : '';
+        return `<div class="code-block relative group mt-2 mb-2"><pre><code class="${language ? `language-${language}` : ''}">${escapeHtml(code)}</code></pre><div class="code-actions"><button type="button" class="code-action" data-action="download-code">📥 Скачать</button><button type="button" class="code-action" data-action="copy-code">Копировать</button>${runButton}</div><pre class="code-output hidden" data-code-output></pre></div>`;
+      };
+      marked.use({ renderer, breaks: true, gfm: true });
+    }
+    function safeMarkdown(text) {
+      const source = String(text ?? '');
+      if (!window.marked || !window.DOMPurify) return `<p>${escapeHtml(source).replace(/\n/g, '<br>')}</p>`;
+      try {
+        return DOMPurify.sanitize(marked.parse(source), {
+          USE_PROFILES: { html: true },
+          ADD_ATTR: ['data-action', 'data-code-output'],
+          FORBID_ATTR: ['style']
+        });
+      } catch (error) {
+        console.error('Ошибка Markdown:', error);
+        return `<p>${escapeHtml(source).replace(/\n/g, '<br>')}</p>`;
+      }
+    }
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, (char) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      })[char]);
+    }
+
+    function autoResizeTextarea(textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = `${Math.min(textarea.scrollHeight, 128)}px`;
+    }
+    function scrollToBottom(force = false) {
+      const box = $('chatBox');
+      if (!box) return;
+      const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 150;
+      if (force || nearBottom) requestAnimationFrame(() => box.scrollTo({ top: box.scrollHeight, behavior: 'auto' }));
+    }
+    function renderMessage(message) {
+      const isUser = message.role === 'user';
+      const row = document.createElement('div');
+      row.className = `flex ${isUser ? 'justify-end' : 'justify-start'}`;
+      const bubble = document.createElement('div');
+      bubble.className = `chat-bubble ${isUser
+        ? 'bg-blue-600 text-white px-4 py-2.5 rounded-2xl rounded-tr-sm max-w-[88%] whitespace-pre-wrap'
+        : 'assistant-content bg-gray-800 text-gray-100 px-4 py-3 rounded-2xl rounded-tl-sm max-w-[96%] border border-gray-700'}`;
+
+      if (message.role === 'tool') return row;
+      if (isUser) bubble.textContent = message.content || '';
+      else {
+        if (Array.isArray(message.tool_calls) && message.tool_calls.length) {
+          const indicator = document.createElement('div');
+          indicator.className = 'text-blue-300 text-xs italic mb-2';
+          indicator.textContent = `🔧 Вызов инструмента: ${message.tool_calls.map((tc) => tc?.function?.name || 'tool').join(', ')}`;
+          bubble.appendChild(indicator);
+        }
+        const content = document.createElement('div');
+        content.innerHTML = safeMarkdown(message.content || '');
+        bubble.appendChild(content);
+      }
+      row.appendChild(bubble);
+      if (message.error) {
+        const retryLine = document.createElement('div');
+        retryLine.className = 'mt-1 text-xs text-red-400';
+        const retry = document.createElement('button');
+        retry.type = 'button'; retry.dataset.action = 'retry';
+        retry.className = 'retry-action underline hover:text-red-300'; retry.textContent = 'Повторить запрос';
+        retryLine.appendChild(retry); row.appendChild(retryLine);
+      }
+      return row;
+    }
+    function renderActiveChat() {
+      const chat = getCurrentChat();
+      $('activeChatTitle').textContent = chat.title || 'Новый чат';
+      const box = $('chatBox');
+      box.replaceChildren();
+      if (!chat.messages.length) {
+        const welcome = document.createElement('div');
+        welcome.className = 'text-center text-gray-500 mt-10';
+        welcome.textContent = 'Привет! Настройте API-ключ и отправьте сообщение.';
+        box.appendChild(welcome); return;
+      }
+      const fragment = document.createDocumentFragment();
+      chat.messages.forEach((message) => {
+        if (message.role === 'tool') return;
+        if (message.role === 'assistant' && !message.content && !message.tool_calls) return;
+        fragment.appendChild(renderMessage(message));
+      });
+      box.appendChild(fragment);
+      scrollToBottom(true);
+    }
+    function renderChatList() {
+      const list = $('chatList');
+      list.replaceChildren();
+      chats.forEach((chat) => {
+        const active = chat.id === currentChatId;
+        const item = document.createElement('div');
+        item.className = `p-2.5 rounded-lg flex items-center gap-2 group transition-colors ${active
+          ? 'bg-blue-600/20 border border-blue-600/50 text-white'
+          : 'hover:bg-gray-800 border border-transparent text-gray-300'}`;
+        const open = document.createElement('button');
+        open.type = 'button'; open.dataset.action = 'switch-chat'; open.dataset.chatId = chat.id;
+        open.className = 'text-left truncate font-medium text-sm flex-1 min-w-0';
+        open.textContent = chat.title || 'Новый чат';
+        const remove = document.createElement('button');
+        remove.type = 'button'; remove.dataset.action = 'delete-chat'; remove.dataset.chatId = chat.id;
+        remove.className = 'text-gray-500 hover:text-red-400 p-1 shrink-0'; remove.setAttribute('aria-label', `Удалить чат ${chat.title || ''}`);
+        remove.textContent = '✕';
+        item.append(open, remove); list.appendChild(item);
+      });
+    }
+    async function renderMemory() {
+      const box = $('memoryBox');
+      const facts = await MemoryDB.getAll();
+      box.replaceChildren();
+      if (!facts.length) { box.textContent = 'Нет сохранённых фактов.'; return; }
+      facts.sort((a, b) => (b.time || 0) - (a.time || 0)).forEach((fact) => {
+        const row = document.createElement('div'); row.className = 'memory-item';
+        const value = document.createElement('span'); value.textContent = `• ${fact.fact}`;
+        const remove = document.createElement('button'); remove.type = 'button';
+        remove.dataset.action = 'delete-memory'; remove.dataset.memoryId = fact.id;
+        remove.textContent = '×'; remove.setAttribute('aria-label', 'Удалить факт из памяти');
+        row.append(value, remove); box.appendChild(row);
+      });
+    }
+    function updateState(nextChats = null, nextCurrentId = null) {
+      if (Array.isArray(nextChats)) {
+        chats = nextChats.length ? nextChats : [createChat()];
+      }
+      if (nextCurrentId && chats.some((chat) => chat.id === nextCurrentId)) currentChatId = nextCurrentId;
+      if (!chats.some((chat) => chat.id === currentChatId)) currentChatId = chats[0].id;
+      persistChats(); renderChatList(); renderActiveChat();
+    }
+    function toggleSidebar(force) {
+      const sidebar = $('sidebar'); const overlay = $('sidebarOverlay');
+      const open = typeof force === 'boolean' ? force : sidebar.classList.contains('-translate-x-full');
+      sidebar.classList.toggle('-translate-x-full', !open);
+      overlay.classList.toggle('hidden', !open);
+    }
+    function toggleSettings(force) {
+      const modal = $('settingsModal');
+      const open = typeof force === 'boolean' ? force : modal.classList.contains('hidden');
+      modal.classList.toggle('hidden', !open);
+      if (open) $('baseUrl').focus();
+    }
+    function initializeSettings() {
+      $('baseUrl').value = safeGet(STORAGE.baseUrl) || DEFAULT_BASE_URL;
+      $('apiKey').value = safeGet(STORAGE.apiKey) || '';
+      $('modelName').value = safeGet(STORAGE.model) || DEFAULT_MODEL;
+      $('tavilyKey').value = safeGet(STORAGE.tavilyKey) || '';
+      $('systemPromptInput').value = safeGet(STORAGE.systemPrompt) || DEFAULT_SYSTEM;
+    }
+    function saveSettings() {
+      let baseUrl = $('baseUrl').value.trim().replace(/\/+$/, '');
+      const apiKey = $('apiKey').value.trim();
+      const model = $('modelName').value.trim();
+      const tavilyKey = $('tavilyKey').value.trim();
+      let parsed;
+      try { parsed = new URL(baseUrl); }
+      catch (_) { alert('Укажите корректный Base URL, например https://api.example.com/v1'); return; }
+      if (!['https:', 'http:'].includes(parsed.protocol)) { alert('Base URL должен начинаться с http:// или https://.'); return; }
+      const localHost = ['localhost', '127.0.0.1', '[::1]'].includes(parsed.hostname);
+      if (parsed.protocol !== 'https:' && !localHost) {
+        alert('Для GitHub Pages нужен HTTPS Base URL. HTTP доступен только для localhost.'); return;
+      }
+      if (!model) { alert('Укажите имя модели.'); return; }
+      if (/\/chat\/completions$/i.test(baseUrl)) baseUrl = baseUrl.replace(/\/chat\/completions$/i, '');
+      const saved = [
+        safeSet(STORAGE.baseUrl, baseUrl),
+        safeSet(STORAGE.apiKey, apiKey),
+        safeSet(STORAGE.model, model),
+        safeSet(STORAGE.tavilyKey, tavilyKey),
+        safeSet(STORAGE.systemPrompt, $('systemPromptInput').value.trim() || DEFAULT_SYSTEM)
+      ].every(Boolean);
+      if (!saved) return;
+      toggleSettings(false);
+      alert('Настройки сохранены.');
+    }
+
+    function buildApiUrl(baseUrl) {
+      return `${baseUrl.replace(/\/+$/, '')}/chat/completions`;
+    }
+    async function makeCacheKey(value) {
+      const serialized = JSON.stringify(value);
+      try {
+        const buffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(serialized));
+        return Array.from(new Uint8Array(buffer), (byte) => byte.toString(16).padStart(2, '0')).join('');
+      } catch (_) {
+        let hash = 2166136261;
+        for (let i = 0; i < serialized.length; i++) hash = Math.imul(hash ^ serialized.charCodeAt(i), 16777619);
+        return `fnv-${(hash >>> 0).toString(16)}-${serialized.length}`;
+      }
+    }
+    function buildHistory(messages) {
+      // Не обрезаем отдельные tool-сообщения от вызова инструмента: это ломает формат OpenAI-compatible API.
+      const turns = [];
+      for (const message of messages) {
+        if (message.role === 'user') turns.push([message]);
+        else if (turns.length) turns[turns.length - 1].push(message);
+      }
+      const selected = [];
+      let count = 0;
+      for (let i = turns.length - 1; i >= 0; i--) {
+        if (selected.length && count + turns[i].length > MAX_CONTEXT_MESSAGES) break;
+        selected.unshift(turns[i]); count += turns[i].length;
+      }
+      return selected.flat().map((message) => ({
+        role: message.role,
+        content: typeof message.content === 'string' ? message.content : '',
+        ...(message.tool_call_id ? { tool_call_id: message.tool_call_id } : {}),
+        ...(message.tool_calls ? { tool_calls: message.tool_calls } : {})
+      }));
+    }
+    function setBusy(busy) {
+      $('sendBtn').classList.toggle('hidden', busy);
+      $('stopBtn').classList.toggle('hidden', !busy);
+      $('userInput').disabled = busy;
+      $('sendBtn').disabled = busy;
+    }
+    function showStatus(message) {
+      $('statusText').textContent = message;
+      $('searchStatus').classList.remove('hidden');
+    }
+    function hideStatus() { $('searchStatus').classList.add('hidden'); }
+    function abortError() { return new DOMException('Запрос отменён', 'AbortError'); }
+    function throwIfAborted(signal) { if (signal.aborted) throw abortError(); }
+    function sleep(ms, signal) {
+      return new Promise((resolve, reject) => {
+        if (signal.aborted) return reject(abortError());
+        const timer = setTimeout(done, ms);
+        function done() { signal.removeEventListener('abort', onAbort); resolve(); }
+        function onAbort() { clearTimeout(timer); signal.removeEventListener('abort', onAbort); reject(abortError()); }
+        signal.addEventListener('abort', onAbort, { once: true });
+      });
+    }
+    async function fetchJson(url, options, signal) {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        throwIfAborted(signal);
+        let response;
+        try { response = await fetch(url, { ...options, signal }); }
+        catch (error) {
+          if (error.name === 'AbortError') throw error;
+          throw new Error('Не удалось подключиться к API. Возможны сетевой сбой или ограничение CORS провайдера. Проверьте Base URL и попробуйте запрос через собственный серверный прокси.');
+        }
+        if (response.ok) {
+          try { return await response.json(); }
+          catch (_) { throw new Error('API вернул ответ, который не удалось прочитать как JSON.'); }
+        }
+        const details = (await response.text().catch(() => '')).slice(0, 500);
+        if ([429, 500, 502, 503, 504].includes(response.status) && attempt < 2) {
+          const retryHeader = Number(response.headers.get('Retry-After'));
+          const delay = Number.isFinite(retryHeader) && retryHeader > 0 ? Math.min(retryHeader * 1000, 10000) : 900 * (attempt + 1);
+          await sleep(delay, signal); continue;
+        }
+        throw new Error(`HTTP ${response.status}${details ? `: ${details}` : ''}`);
+      }
+      throw new Error('Превышено количество повторных попыток запроса.');
+    }
+    async function performTavilySearch(query, signal) {
+      const key = safeGet(STORAGE.tavilyKey) || '';
+      if (!key) return 'Веб-поиск не выполнен: сначала добавьте Tavily Search API Key в настройках.';
+      showStatus(`🔎 Поиск в сети: ${query.slice(0, 120)}…`);
+      let response;
+      try {
+        response = await fetch('https://api.tavily.com/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+          body: JSON.stringify({ query, search_depth: 'basic', max_results: 6, include_answer: false }),
+          signal
+        });
+      } catch (error) {
+        if (error.name === 'AbortError') throw error;
+        return 'Ошибка веб-поиска: браузер не смог подключиться к Tavily. Возможно, провайдер запрещает прямые CORS-запросы из GitHub Pages; тогда нужен собственный серверный прокси.';
+      }
+      if (!response.ok) {
+        const detail = (await response.text().catch(() => '')).slice(0, 250);
+        return `Ошибка Tavily HTTP ${response.status}${detail ? `: ${detail}` : ''}`;
+      }
+      let data;
+      try { data = await response.json(); }
+      catch (_) { return 'Ошибка Tavily: API вернул невалидный JSON.'; }
+      if (!Array.isArray(data.results) || !data.results.length) return 'Поиск не вернул результатов.';
+      return data.results.slice(0, 6).map((result, index) => {
+        const title = String(result.title || 'Источник').slice(0, 180);
+        const url = String(result.url || '').slice(0, 1000);
+        const content = String(result.content || '').slice(0, 1600);
+        return `[${index + 1}] ${title}\nURL: ${url}\n${content}`;
+      }).join('\n\n');
+    }
+    async function runAssistant(chat, signal, useSearch, useMultiAgent) {
+      const baseUrl = (safeGet(STORAGE.baseUrl) || DEFAULT_BASE_URL).replace(/\/+$/, '');
+      const apiKey = safeGet(STORAGE.apiKey) || '';
+      const model = safeGet(STORAGE.model) || DEFAULT_MODEL;
+      const memories = await MemoryDB.getAll();
+      const memoryContext = memories.length
+        ? `\nДолгосрочная память (пользовательские заметки):\n${memories.map((fact) => `- ${fact.fact}`).join('\n')}` : '';
+      let systemPrompt = `Сегодня: ${new Date().toLocaleDateString('ru-RU')}. ${safeGet(STORAGE.systemPrompt) || DEFAULT_SYSTEM}${memoryContext}`;
+      if (useMultiAgent) {
+        systemPrompt += '\nРЕЖИМ МУЛЬТИАГЕНТНОГО СТИЛЯ: самостоятельно пройди этапы Planner → Researcher → Critic → Synthesizer внутри этого ответа. Это имитация ролей в одном запросе, а не запуск независимых моделей или фоновых агентов.';
+      }
+
+      const messagesForCache = [{ role: 'system', content: systemPrompt }, ...buildHistory(chat.messages)];
+      const cacheKey = await makeCacheKey({ endpoint: baseUrl, model, messages: messagesForCache });
+      if (!useSearch) {
+        const cached = await CacheDB.get(cacheKey);
+        if (cached) {
+          chat.messages.push({ role: 'assistant', content: `${cached}\n\n*(из локального кэша)*` });
+          updateState([...chats]); return;
+        }
+      }
+
+      const tools = useSearch ? [{
+        type: 'function',
+        function: {
+          name: 'web_search',
+          description: 'Найти актуальную информацию в интернете по запросу.',
+          parameters: { type: 'object', properties: { query: { type: 'string', description: 'Запрос для поиска' } }, required: ['query'], additionalProperties: false }
+        }
+      }] : undefined;
+
+      for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
+        throwIfAborted(signal);
+        const apiMessages = [{ role: 'system', content: systemPrompt }, ...buildHistory(chat.messages)];
+        const body = { model, messages: apiMessages, stream: false };
+        if (tools) { body.tools = tools; body.tool_choice = 'auto'; }
+        showStatus(round === 0 ? '🤖 Ожидание ответа модели…' : '🧠 Модель обрабатывает результаты поиска…');
+        const data = await fetchJson(buildApiUrl(baseUrl), {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        }, signal);
+        const message = data?.choices?.[0]?.message;
+        if (!message) throw new Error('API не вернул сообщение модели. Проверьте выбранную модель и совместимость endpoint.');
+        const toolCalls = (Array.isArray(message.tool_calls) ? message.tool_calls : []).map((call, index) => ({
+          ...call,
+          id: typeof call.id === 'string' && call.id ? call.id : `local-tool-${round}-${index}-${Date.now()}`,
+          type: call.type || 'function'
+        }));
+        const assistantMessage = {
+          role: 'assistant', content: typeof message.content === 'string' ? message.content : '',
+          ...(toolCalls.length ? { tool_calls: toolCalls } : {})
         };
+        chat.messages.push(assistantMessage);
+        updateState([...chats]);
 
-        const CacheDB = {
-            get: async (key) => {
-                if (!db) return null;
-                return new Promise((res) => {
-                    try {
-                        const tx = db.transaction('cache', 'readonly');
-                        const req = tx.objectStore('cache').get(key);
-                        req.onsuccess = () => res(req.result || null);
-                        req.onerror = () => res(null);
-                    } catch (e) { res(null); }
-                });
-            },
-            set: async (key, val) => {
-                if (!db) return;
-                try {
-                    const tx = db.transaction('cache', 'readwrite');
-                    tx.objectStore('cache').put(val, key);
-                } catch (e) {}
-            }
-        };
-
-        const MemoryDB = {
-            getAll: async () => {
-                if (!db) return [];
-                return new Promise((res) => {
-                    try {
-                        const tx = db.transaction('memory', 'readonly');
-                        const req = tx.objectStore('memory').getAll();
-                        req.onsuccess = () => res(req.result || []);
-                        req.onerror = () => res([]);
-                    } catch (e) { res([]); }
-                });
-            },
-            add: async (fact) => {
-                if (!db) return;
-                try {
-                    const tx = db.transaction('memory', 'readwrite');
-                    tx.objectStore('memory').add({ fact, time: Date.now() });
-                    renderMemory();
-                } catch (e) {}
-            }
-        };
-
-        // Pyodide Python
-        let pyodideInstance = null;
-        async function initPyodide() {
-            try {
-                pyodideInstance = await loadPyodide();
-                const statusEl = document.getElementById('pyStatus');
-                if (statusEl) {
-                    statusEl.innerText = 'Py: готов';
-                    statusEl.className = 'text-[10px] bg-green-600/30 text-green-300 px-2 py-0.5 rounded';
-                }
-            } catch (e) {
-                const statusEl = document.getElementById('pyStatus');
-                if (statusEl) {
-                    statusEl.innerText = 'Py: ошибка';
-                    statusEl.className = 'text-[10px] bg-red-600/30 text-red-300 px-2 py-0.5 rounded';
-                }
-            }
+        if (!toolCalls.length) {
+          hideStatus();
+          if (assistantMessage.content && !useSearch) await CacheDB.set(cacheKey, assistantMessage.content);
+          return;
+        }
+        if (!useSearch || round === MAX_TOOL_ROUNDS) {
+          const reason = !useSearch
+            ? 'Инструменты отключены: включите веб-поиск и повторите запрос.'
+            : 'Отклонено: достигнут лимит вызовов инструментов.';
+          toolCalls.forEach((toolCall) => chat.messages.push({ role: 'tool', tool_call_id: toolCall.id, content: reason }));
+          updateState([...chats]);
+          if (!useSearch) throw new Error('Модель попыталась вызвать инструмент, хотя веб-поиск выключен.');
+          throw new Error('Достигнут лимит последовательных вызовов инструментов. Уточните запрос и повторите.');
         }
 
-        async function runPythonCode(code) {
-            if (!pyodideInstance) return "Python еще загружается в память браузера...";
-            try {
-                let result = await pyodideInstance.runPythonAsync(code);
-                return String(result !== undefined ? result : "Код успешно выполнен (без вывода).");
-            } catch (err) {
-                return `Ошибка Python: ${err.message}`;
-            }
-        }
-
-        let chats = JSON.parse(localStorage.getItem('ai_chats_v87')) || [{ id: 'default', title: 'Новый чат', messages: [] }];
-        let currentChatId = localStorage.getItem('ai_current_chat_v87') || chats[0].id;
-        let abortController = null;
-
-        const DEFAULT_SYSTEM = "Ты автономный ИИ-ассистент и мультиагентная система. Ты умеешь искать в сети и выполнять код на Python прямо в браузере. Выдавай структурированные отчеты.";
-
-        const renderer = new marked.Renderer();
-        renderer.code = (code, language) => {
-            const validLang = language ? `language-${language}` : '';
-            const safeCode = DOMPurify.sanitize(code);
-            
-            return `
-                <div class="relative group mt-2 mb-2">
-                    <pre class="bg-gray-950 rounded-lg overflow-x-auto"><code class="${validLang} text-sm p-3 block">${safeCode}</code></pre>
-                    <div class="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onclick="downloadCodeSnippet(this)" class="bg-blue-600 hover:bg-blue-500 text-white text-xs px-2 py-1 rounded">📥 Скачать</button>
-                        <button onclick="copyCodeSnippet(this)" class="bg-gray-700 hover:bg-gray-600 text-white text-xs px-2 py-1 rounded">Копировать</button>
-                        ${language === 'python' ? `<button onclick="executeBrowserPython(this)" class="bg-green-700 hover:bg-green-600 text-white text-xs px-2 py-1 rounded">▶ Запустить</button>` : ''}
-                    </div>
-                </div>
-            `;
-        };
-        marked.setOptions({ renderer, breaks: true, gfm: true });
-
-        window.onload = async () => {
-            await initDB();
-            initPyodide();
-            renderMemory();
-
-            document.getElementById('baseUrl').value = localStorage.getItem('ai_base_url') || 'https://generativelanguage.googleapis.com/v1beta/openai';
-            document.getElementById('apiKey').value = localStorage.getItem('ai_api_key') || '';
-            document.getElementById('modelName').value = localStorage.getItem('ai_model_name') || 'gemini-3.8-flash';
-            document.getElementById('tavilyKey').value = localStorage.getItem('ai_tavily_key') || '';
-            document.getElementById('systemPromptInput').value = localStorage.getItem('ai_system_prompt') || DEFAULT_SYSTEM;
-            
-            updateState();
-
-            if (window.visualViewport) {
-                window.visualViewport.addEventListener('resize', () => {
-                    document.body.style.height = `${window.visualViewport.height}px`;
-                    scrollToBottom(false);
-                });
-            }
-        };
-
-        async function renderMemory() {
-            const facts = await MemoryDB.getAll();
-            const box = document.getElementById('memoryBox');
-            if (!box) return;
-            if (facts.length === 0) {
-                box.innerHTML = 'Нет сохраненных фактов.';
-                return;
-            }
-            box.innerHTML = facts.map(f => `• ${escapeHtml(f.fact)}`).join('<br>');
-        }
-
-        function updateState(newChats, newCurrentId) {
-            if (newChats) {
-                chats = newChats;
-                localStorage.setItem('ai_chats_v87', JSON.stringify(chats));
-            }
-            if (newCurrentId) {
-                currentChatId = newCurrentId;
-                localStorage.setItem('ai_current_chat_v87', currentChatId);
-            }
-            renderChatList();
-            renderActiveChat();
-        }
-
-        function toggleSidebar() {
-            document.getElementById('sidebar').classList.toggle('-translate-x-full');
-            document.getElementById('sidebarOverlay').classList.toggle('hidden');
-        }
-
-        function toggleSettings() {
-            document.getElementById('settingsModal').classList.toggle('hidden');
-        }
-
-        function saveSettings() {
-            let url = document.getElementById('baseUrl').value.trim();
-            if (url.endsWith('/')) url = url.slice(0, -1);
-            
-            localStorage.setItem('ai_base_url', url);
-            localStorage.setItem('ai_api_key', document.getElementById('apiKey').value.trim());
-            localStorage.setItem('ai_model_name', document.getElementById('modelName').value.trim());
-            localStorage.setItem('ai_tavily_key', document.getElementById('tavilyKey').value.trim());
-            localStorage.setItem('ai_system_prompt', document.getElementById('systemPromptInput').value.trim());
-            toggleSettings();
-            alert('Настройки сохранены!');
-        }
-
-        function getCurrentChat() {
-            return chats.find(c => c.id === currentChatId) || chats[0];
-        }
-
-        function createNewChat() {
-            const newChat = { id: Date.now().toString(), title: 'Новый чат', messages: [] };
-            updateState([newChat, ...chats], newChat.id);
-            toggleSidebar();
-        }
-
-        function clearCurrentChat() {
-            if (confirm('Очистить историю текущего чата?')) {
-                const chat = getCurrentChat();
-                chat.messages = [];
-                chat.title = 'Новый чат';
-                updateState([...chats]);
-                toggleSidebar();
-            }
-        }
-
-        function switchChat(id) {
-            updateState(null, id);
-            toggleSidebar();
-        }
-
-        function deleteChat(id, event) {
-            event.stopPropagation();
-            if (chats.length <= 1) {
-                alert('Нельзя удалить единственный чат.');
-                return;
-            }
-            const newChats = chats.filter(c => c.id !== id);
-            let newCurrentId = currentChatId;
-            if (currentChatId === id) newCurrentId = newChats[0].id;
-            updateState(newChats, newCurrentId);
-        }
-
-        function renderChatList() {
-            const list = document.getElementById('chatList');
-            if (!list) return;
-            list.innerHTML = '';
-            chats.forEach(chat => {
-                const isActive = chat.id === currentChatId;
-                const div = document.createElement('div');
-                div.className = `p-3 rounded-lg cursor-pointer flex justify-between items-center group transition-colors ${isActive ? 'bg-blue-600/20 border border-blue-600/50 text-white' : 'hover:bg-gray-800 border border-transparent text-gray-300'}`;
-                div.onclick = () => switchChat(chat.id);
-                div.innerHTML = `
-                    <span class="truncate font-medium text-sm flex-1">${DOMPurify.sanitize(chat.title)}</span>
-                    <button onclick="deleteChat('${chat.id}', event)" class="text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity p-1">✕</button>
-                `;
-                list.appendChild(div);
-            });
-        }
-
-        function scrollToBottom(force = false) {
-            const chatBox = document.getElementById('chatBox');
-            if (!chatBox) return;
-            const threshold = 150;
-            const isNearBottom = chatBox.scrollHeight - chatBox.scrollTop - chatBox.clientHeight < threshold;
-            if (force || isNearBottom) {
-                requestAnimationFrame(() => {
-                    chatBox.scrollTo({ top: chatBox.scrollHeight, behavior: 'smooth' });
-                });
-            }
-        }
-
-        function renderMessage(msg) {
-            const isUser = msg.role === 'user';
-            const div = document.createElement('div');
-            div.className = `flex ${isUser ? 'justify-end' : 'justify-start'}`;
-
-            let contentHtml = '';
-            if (msg.role === 'assistant') {
-                contentHtml = DOMPurify.sanitize(marked.parse(msg.content || ''));
-            } else {
-                contentHtml = escapeHtml(msg.content || '');
-            }
-
-            const bubbleClass = isUser 
-                ? 'bg-blue-600 text-white px-4 py-2.5 rounded-2xl rounded-tr-sm max-w-[85%] whitespace-pre-wrap'
-                : 'bg-gray-800 text-gray-100 px-4 py-3 rounded-2xl rounded-tl-sm max-w-[90%] border border-gray-700';
-
-            div.innerHTML = `<div class="${bubbleClass}">${contentHtml}</div>`;
-
-            if (msg.error) {
-                div.innerHTML += `<div class="mt-1 text-xs text-red-400"><button onclick="retryLastMessage()" class="underline">Повторить запрос</button></div>`;
-            }
-
-            return div;
-        }
-
-        function renderActiveChat() {
-            const chat = getCurrentChat();
-            const titleEl = document.getElementById('activeChatTitle');
-            if (titleEl) titleEl.innerText = chat.title;
-            const chatBox = document.getElementById('chatBox');
-            if (!chatBox) return;
-            chatBox.innerHTML = '';
-
-            if (chat.messages.length === 0) {
-                chatBox.innerHTML = `<div class="text-center text-gray-500 mt-10">Привет! Все системы готовы к работе.</div>`;
-                return;
-            }
-
-            const fragment = document.createDocumentFragment();
-            chat.messages.forEach((msg) => {
-                if (msg.role === 'tool') return;
-                if (msg.role === 'assistant' && !msg.content && !msg.tool_calls) return;
-                fragment.appendChild(renderMessage(msg));
-            });
-            chatBox.appendChild(fragment);
-            scrollToBottom(true);
-        }
-
-        function escapeHtml(text) {
-            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
-        }
-
-        function handleKeyDown(event) {
-            if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault();
-                sendMessage();
-            }
-        }
-
-        function showSearchStatus(text) {
-            const statusEl = document.getElementById('searchStatus');
-            if (statusEl) {
-                document.getElementById('statusText').innerText = text;
-                statusEl.classList.remove('hidden');
-            }
-        }
-
-        function hideSearchStatus() {
-            const statusEl = document.getElementById('searchStatus');
-            if (statusEl) statusEl.classList.add('hidden');
-        }
-
-        async function performTavilySearch(query) {
-            const tavilyKey = localStorage.getItem('ai_tavily_key') || '';
-            if (!tavilyKey) return "Поиск не настроен (нет ключа Tavily).";
-
-            try {
-                const targetUrl = 'https://api.tavily.com/search';
-                const proxyUrl = 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(targetUrl);
-
-                const res = await fetch(proxyUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ api_key: tavilyKey, query: query, search_depth: "basic" })
-                });
-                const data = await res.json();
-                if (data.results) {
-                    return data.results.map(r => `Источник: ${r.title} (${r.url})\n${r.content}`).join('\n\n');
-                }
-            } catch (err) {
-                console.error("Search error:", err);
-            }
-            return "Ошибка выполнения поискового запроса.";
-        }
-
-        async function executeBrowserPython(btn) {
-            const code = btn.parentElement.parentElement.querySelector('code').innerText;
-            btn.innerText = 'Выполняем...';
-            const output = await runPythonCode(code);
-            alert("Результат выполнения Python в браузере:\n\n" + output);
-            btn.innerText = '▶ Запустить';
-        }
-
-        function copyCodeSnippet(btn) {
-            const code = btn.parentElement.parentElement.querySelector('code').innerText;
-            navigator.clipboard.writeText(code);
-            btn.textContent = 'Скопировано!';
-            setTimeout(() => btn.textContent = 'Копировать', 2000);
-        }
-
-        function downloadCodeSnippet(btn) {
-            const code = btn.parentElement.parentElement.querySelector('code').innerText;
-            const filename = prompt("Введите имя файла для скачивания:", "snippet.txt");
-            if (!filename) return;
-            const blob = new Blob([code], { type: 'text/plain;charset=utf-8' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        }
-
-        async function sendMessage(isRetry = false, toolDepth = 0) {
-            if (toolDepth > 3) {
-                hideSearchStatus();
-                alert('Превышен лимит вызовов.');
-                return;
-            }
-
-            const input = document.getElementById('userInput');
-            const text = input ? input.value.trim() : '';
-            const chat = getCurrentChat();
-
-            if (!text && !isRetry) return;
-
-            const apiKey = localStorage.getItem('ai_api_key') || '';
-            if (!apiKey) {
-                alert('Укажите API Key в настройках!');
-                toggleSettings();
-                return;
-            }
-
-            if (!isRetry) {
-                if (chat.messages.length === 0) {
-                    chat.title = text.slice(0, 30) + (text.length > 30 ? '...' : '');
-                }
-                chat.messages.push({ role: 'user', content: text });
-                if (input) input.value = '';
-                
-                if (text.length > 15 && Math.random() < 0.25) {
-                    MemoryDB.add(`Пользователь отметил: "${text.slice(0, 60)}"`);
-                }
-            }
-
-            updateState([...chats]);
-
-            const sendBtn = document.getElementById('sendBtn');
-            const stopBtn = document.getElementById('stopBtn');
-            if (sendBtn) sendBtn.classList.add('hidden');
-            if (stopBtn) stopBtn.classList.remove('hidden');
-
-            abortController = new AbortController();
-
-            let baseUrl = localStorage.getItem('ai_base_url') || 'https://generativelanguage.googleapis.com/v1beta/openai';
-            if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
-
-            const modelName = localStorage.getItem('ai_model_name') || 'gemini-3.8-flash';
-            const systemPrompt = localStorage.getItem('ai_system_prompt') || DEFAULT_SYSTEM;
-            const searchToggle = document.getElementById('toggleSearch');
-            const multiAgentToggle = document.getElementById('toggleMultiAgent');
-            const useSearch = searchToggle ? searchToggle.checked : false;
-            const useMultiAgent = multiAgentToggle ? multiAgentToggle.checked : false;
-
-            const cacheKey = `${modelName}_${text}_${useSearch}_${useMultiAgent}`;
-            if (!isRetry && toolDepth === 0) {
-                const cachedResp = await CacheDB.get(cacheKey);
-                if (cachedResp) {
-                    chat.messages.push({ role: 'assistant', content: cachedResp + "\n\n*(из кэша)*" });
-                    updateState([...chats]);
-                    if (sendBtn) sendBtn.classList.remove('hidden');
-                    if (stopBtn) stopBtn.classList.add('hidden');
-                    abortController = null;
-                    return;
-                }
-            }
-
-            const memories = await MemoryDB.getAll();
-            const memoryContext = memories.length > 0 ? `\nДолгосрочная память:\n` + memories.map(m => `- ${m.fact}`).join('\n') : '';
-
-            let fullSystemPrompt = `Сегодня: ${new Date().toLocaleDateString('ru-RU')}. ${systemPrompt} ${memoryContext}`;
-            if (useMultiAgent) {
-                fullSystemPrompt += `\n[МУЛЬТИАГЕНТНЫЙ РЕЖИМ]. Работает команда (Planner, Researcher, Synthesizer). Проведи декомпозицию, исследуй вопрос, подготовь структурированный отчет и оформляй ключевой код или результаты в блоки кода с возможностью скачивания.`;
-            }
-
-            const trimmedHistory = chat.messages.slice(-20).map(m => ({
-                role: m.role,
-                content: m.content || "",
-                ...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {}),
-                ...(m.tool_calls ? { tool_calls: m.tool_calls } : {})
-            }));
-
-            const apiMessages = [{ role: 'system', content: fullSystemPrompt }, ...trimmedHistory];
-
-            let tools = undefined;
-            if (useSearch) {
-                tools = [{
-                    type: "function",
-                    function: {
-                        name: "web_search",
-                        description: "Поиск актуальной информации в интернете через Tavily.",
-                        parameters: {
-                            type: "object",
-                            properties: { query: { type: "string" } },
-                            required: ["query"]
-                        }
-                    }
-                }];
-            }
-
-            const headers = { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' };
-            if (baseUrl.includes('ngrok')) headers['ngrok-skip-browser-warning'] = '1';
-
-            const targetApiUrl = `${baseUrl}/chat/completions`;
-            const finalApiUrl = 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(targetApiUrl);
-
-            let attempts = 0;
-            let success = false;
-
-            while (attempts < 3 && !success) {
-                try {
-                    const reqBody = {
-                        model: modelName,
-                        messages: apiMessages,
-                        stream: false
-                    };
-                    if (tools) reqBody.tools = tools;
-
-                    const response = await fetch(finalApiUrl, {
-                        method: 'POST',
-                        headers: headers,
-                        body: JSON.stringify(reqBody),
-                        signal: abortController.signal
-                    });
-
-                    if (response.status === 429) {
-                        attempts++;
-                        await new Promise(r => setTimeout(r, 2000 * attempts));
-                        continue;
-                    }
-
-                    if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`);
-
-                    const data = await response.json();
-                    success = true;
-                    await handleJsonResponse(data, chat, toolDepth, cacheKey);
-
-                } catch (err) {
-                    if (err.name === 'AbortError') break;
-                    attempts++;
-                    if (attempts >= 3) {
-                        hideSearchStatus();
-                        chat.messages.push({ role: 'assistant', content: `❌ Ошибка сети: ${err.message}`, error: true });
-                        updateState([...chats]);
-                    } else {
-                        await new Promise(r => setTimeout(r, 1500));
-                    }
-                }
-            }
-
-            if (sendBtn) sendBtn.classList.remove('hidden');
-            if (stopBtn) stopBtn.classList.add('hidden');
-            abortController = null;
-        }
-
-        async function handleJsonResponse(data, chat, toolDepth, cacheKey) {
-            const choice = data.choices?.[0];
-            if (!choice) {
-                hideSearchStatus();
-                updateState([...chats]);
-                return;
-            }
-
-            const message = choice.message;
-            let assistantMessage = { role: 'assistant', content: message.content || '' };
-            chat.messages.push(assistantMessage);
-            renderActiveChat();
-
-            if (message.tool_calls && message.tool_calls.length > 0) {
-                assistantMessage.tool_calls = message.tool_calls;
-                updateState([...chats]);
-
-                if (abortController && abortController.signal.aborted) {
-                    hideSearchStatus();
-                    return;
-                }
-
-                const tc = message.tool_calls[0];
-                if (tc && tc.function.name === 'web_search') {
-                    try {
-                        const args = JSON.parse(tc.function.arguments);
-                        showSearchStatus(`🔎 Поиск в сети: ${args.query}...`);
-
-                        const searchResult = await performTavilySearch(args.query);
-                        hideSearchStatus();
-
-                        if (abortController && abortController.signal.aborted) return;
-
-                        chat.messages.push({ role: 'tool', tool_call_id: tc.id, content: searchResult });
-                        updateState([...chats]);
-                        await sendMessage(true, toolDepth + 1);
-                    } catch (e) {
-                        hideSearchStatus();
-                        assistantMessage.content += `\n[Ошибка поиска]`;
-                        updateState([...chats]);
-                    }
-                }
-            } else {
-                hideSearchStatus();
-                if (assistantMessage.content) {
-                    CacheDB.set(cacheKey, assistantMessage.content);
-                }
-                updateState([...chats]);
-            }
-        }
-
-        function stopGeneration() {
-            if (abortController) {
-                abortController.abort();
-                hideSearchStatus();
-                const sendBtn = document.getElementById('sendBtn');
-                const stopBtn = document.getElementById('stopBtn');
-                if (sendBtn) sendBtn.classList.remove('hidden');
-                if (stopBtn) stopBtn.classList.add('hidden');
-            }
-        }
-
-        function retryLastMessage() {
-            const chat = getCurrentChat();
-            if (chat.messages.length > 0 && chat.messages[chat.messages.length - 1].error) {
-                chat.messages.pop();
+        for (let index = 0; index < toolCalls.length; index++) {
+          const toolCall = toolCalls[index];
+          const id = toolCall.id;
+          const name = toolCall.function?.name;
+          let result;
+          if (signal.aborted) {
+            result = 'Вызов инструмента отменён пользователем.';
+            chat.messages.push({ role: 'tool', tool_call_id: id, content: result });
+            for (let rest = index + 1; rest < toolCalls.length; rest++) {
+              chat.messages.push({ role: 'tool', tool_call_id: toolCalls[rest].id, content: 'Вызов инструмента отменён пользователем.' });
             }
             updateState([...chats]);
-            sendMessage(true);
-        }
-
-        function exportChats() {
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(chats));
-            const dlAnchorElem = document.createElement('a');
-            dlAnchorElem.setAttribute("href", dataStr);
-            dlAnchorElem.setAttribute("download", `ai_chats_v87_${Date.now()}.json`);
-            dlAnchorElem.click();
-        }
-
-        function importChats(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    const imported = JSON.parse(e.target.result);
-                    if (Array.isArray(imported) && imported.length > 0) {
-                        updateState(imported, imported[0].id);
-                        alert('Чаты импортированы!');
-                    }
-                } catch (err) {
-                    alert('Ошибка чтения JSON файла.');
+            throw abortError();
+          }
+          if (name !== 'web_search') {
+            result = `Инструмент ${String(name || 'без имени')} не поддерживается.`;
+          } else {
+            try {
+              const args = JSON.parse(toolCall.function?.arguments || '{}');
+              if (typeof args.query !== 'string' || !args.query.trim()) result = 'Ошибка инструмента: требуется непустое поле query.';
+              else result = await performTavilySearch(args.query.trim().slice(0, 500), signal);
+            } catch (error) {
+              if (error.name === 'AbortError') {
+                chat.messages.push({ role: 'tool', tool_call_id: id, content: 'Вызов инструмента отменён пользователем.' });
+                for (let rest = index + 1; rest < toolCalls.length; rest++) {
+                  chat.messages.push({ role: 'tool', tool_call_id: toolCalls[rest].id, content: 'Вызов инструмента отменён пользователем.' });
                 }
-            };
-            reader.readAsText(file);
+                updateState([...chats]);
+                throw abortError();
+              }
+              result = `Не удалось обработать вызов веб-поиска: ${error.message}`;
+            }
+          }
+          chat.messages.push({ role: 'tool', tool_call_id: id, content: result });
         }
-    </script>
+        updateState([...chats]);
+      }
+      throw new Error('Модель не завершила ответ в пределах лимита инструментов.');
+    }
+
+    async function sendMessage(isRetry = false) {
+      if (isGenerating) return;
+      const input = $('userInput');
+      const text = input.value.trim();
+      if (!text && !isRetry) return;
+      const apiKey = safeGet(STORAGE.apiKey) || '';
+      if (!apiKey) { alert('Укажите API Key в настройках.'); toggleSettings(true); return; }
+      const chat = getCurrentChat();
+      if (!isRetry) {
+        if (!chat.messages.some((message) => message.role === 'user')) {
+          chat.title = text.slice(0, 38) + (text.length > 38 ? '…' : '');
+        }
+        chat.messages.push({ role: 'user', content: text });
+        input.value = ''; autoResizeTextarea(input);
+      }
+      updateState([...chats]);
+      isGenerating = true;
+      activeChatId = chat.id;
+      const controller = new AbortController(); activeController = controller;
+      setBusy(true);
+      const useSearch = $('toggleSearch').checked;
+      const useMultiAgent = $('toggleMultiAgent').checked;
+      try {
+        await runAssistant(chat, controller.signal, useSearch, useMultiAgent);
+      } catch (error) {
+        if (error.name === 'AbortError') {
+          hideStatus();
+        } else {
+          console.error('Ошибка запроса:', error);
+          hideStatus();
+          chat.messages.push({ role: 'assistant', content: `❌ ${error.message || 'Неизвестная ошибка.'}`, error: true });
+          updateState([...chats]);
+        }
+      } finally {
+        if (activeController === controller) {
+          activeController = null; activeChatId = null; isGenerating = false;
+          hideStatus(); setBusy(false); $('userInput').focus();
+        }
+      }
+    }
+    function stopGeneration() {
+      if (activeController) activeController.abort();
+      hideStatus();
+    }
+    function retryLastMessage() {
+      if (isGenerating) return;
+      const chat = getCurrentChat();
+      if (chat.messages.length && chat.messages[chat.messages.length - 1].error) chat.messages.pop();
+      updateState([...chats]);
+      sendMessage(true);
+    }
+    function createNewChat() {
+      const chat = createChat();
+      updateState([chat, ...chats], chat.id);
+      toggleSidebar(false);
+    }
+    function clearCurrentChat() {
+      if (!confirm('Очистить историю текущего чата?')) return;
+      if (activeChatId === currentChatId) stopGeneration();
+      const chat = getCurrentChat(); chat.messages = []; chat.title = 'Новый чат';
+      updateState([...chats]); toggleSidebar(false);
+    }
+    function switchChat(id) {
+      if (!chats.some((chat) => chat.id === id)) return;
+      updateState(null, id); toggleSidebar(false);
+    }
+    function deleteChat(id) {
+      if (chats.length <= 1) { alert('Нельзя удалить единственный чат.'); return; }
+      if (activeChatId === id) stopGeneration();
+      const next = chats.filter((chat) => chat.id !== id);
+      updateState(next, currentChatId === id ? next[0].id : currentChatId);
+    }
+    function exportChats() {
+      const blob = new Blob([JSON.stringify(chats, null, 2)], { type: 'application/json;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a'); anchor.href = url;
+      anchor.download = `ai_chats_${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(anchor); anchor.click(); anchor.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+    async function importChats(event) {
+      const file = event.target.files?.[0];
+      event.target.value = '';
+      if (!file) return;
+      if (file.size > 15 * 1024 * 1024) { alert('Файл слишком большой (лимит 15 МБ).'); return; }
+      try {
+        const imported = JSON.parse(await file.text());
+        if (!Array.isArray(imported) || !imported.length || imported.length > 500 ||
+            imported.some((chat) => !chat || typeof chat.id !== 'string' || !Array.isArray(chat.messages))) {
+          throw new Error('Структура файла не похожа на экспорт чатов.');
+        }
+        if (activeController) stopGeneration();
+        const clean = imported.map((chat) => ({
+          id: chat.id.slice(0, 128), title: typeof chat.title === 'string' ? chat.title.slice(0, 160) : 'Импортированный чат',
+          messages: chat.messages.filter((m) => m && ['user', 'assistant', 'tool'].includes(m.role)).map((m) => ({
+            role: m.role, content: typeof m.content === 'string' ? m.content : '',
+            ...(typeof m.tool_call_id === 'string' ? { tool_call_id: m.tool_call_id } : {}),
+            ...(Array.isArray(m.tool_calls) ? { tool_calls: m.tool_calls } : {}), ...(m.error ? { error: true } : {})
+          }))
+        }));
+        // Нормализуем дублирующиеся id, встречающиеся в объединённых экспортах.
+        const seen = new Set();
+        clean.forEach((chat) => { if (seen.has(chat.id)) chat.id = `${chat.id}-${Math.random().toString(36).slice(2, 7)}`; seen.add(chat.id); });
+        updateState(clean, clean[0].id); toggleSidebar(false); alert('Чаты импортированы.');
+      } catch (error) { alert(`Ошибка импорта: ${error.message}`); }
+    }
+
+    async function copyText(text) {
+      if (navigator.clipboard?.writeText && window.isSecureContext) return navigator.clipboard.writeText(text);
+      const area = document.createElement('textarea'); area.value = text;
+      area.style.position = 'fixed'; area.style.opacity = '0'; document.body.appendChild(area); area.select();
+      const ok = document.execCommand('copy'); area.remove();
+      if (!ok) throw new Error('Браузер не разрешил копирование.');
+    }
+    async function handleCodeAction(button) {
+      const block = button.closest('.code-block');
+      const code = block?.querySelector('code')?.textContent ?? '';
+      const action = button.dataset.action;
+      if (action === 'copy-code') {
+        try { await copyText(code); const old = button.textContent; button.textContent = 'Скопировано'; setTimeout(() => { button.textContent = old; }, 1500); }
+        catch (error) { alert(error.message); }
+      } else if (action === 'download-code') {
+        const isPython = block?.querySelector('code')?.classList.contains('language-python');
+        const answer = prompt('Имя файла для скачивания:', isPython ? 'snippet.py' : 'snippet.txt');
+        if (!answer) return;
+        const filename = answer.trim().replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_').slice(0, 120) || 'snippet.txt';
+        const blob = new Blob([code], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob); const anchor = document.createElement('a');
+        anchor.href = url; anchor.download = filename; document.body.appendChild(anchor); anchor.click(); anchor.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      } else if (action === 'run-python') {
+        const output = block?.querySelector('[data-code-output]');
+        if (!output) return;
+        button.disabled = true; button.textContent = 'Выполняется…';
+        output.classList.remove('hidden'); output.textContent = 'Выполняется Python…';
+        try { output.textContent = await runPythonCode(code); }
+        finally { button.disabled = false; button.textContent = '▶ Запустить'; }
+      }
+    }
+    async function initPyodide() {
+      const status = $('pyStatus');
+      try {
+        if (typeof window.loadPyodide !== 'function') throw new Error('Библиотека Pyodide не загрузилась.');
+        pyodideInstance = await window.loadPyodide({ indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.29.5/full/' });
+        status.textContent = 'Py: готов';
+        status.className = 'text-[10px] bg-green-600/30 text-green-300 px-2 py-0.5 rounded';
+        status.title = 'Python выполняется в среде WebAssembly браузера';
+      } catch (error) {
+        console.warn('Pyodide недоступен:', error);
+        status.textContent = 'Py: ошибка';
+        status.className = 'text-[10px] bg-red-600/30 text-red-300 px-2 py-0.5 rounded';
+        status.title = error.message;
+      }
+    }
+    async function runPythonCode(code) {
+      if (!pyodideInstance) return 'Python ещё загружается или библиотека не загрузилась. Проверьте соединение и обновите страницу.';
+      const stdout = [];
+      const stderr = [];
+      let result;
+      try {
+        pyodideInstance.setStdout?.({ batched: (line) => stdout.push(String(line)) });
+        pyodideInstance.setStderr?.({ batched: (line) => stderr.push(String(line)) });
+        result = await pyodideInstance.runPythonAsync(code);
+        let value = '';
+        if (result !== undefined && result !== null) {
+          if (typeof result.toJs === 'function') value = JSON.stringify(result.toJs({ dict_converter: Object.fromEntries }), null, 2) ?? String(result);
+          else value = String(result);
+        }
+        const printed = [...stdout, ...stderr].filter(Boolean).join('\n');
+        if (printed && value && value !== 'None') return `${printed}\n${value}`;
+        if (printed) return printed;
+        if (value && value !== 'None') return value;
+        return 'Код выполнен без вывода.';
+      } catch (error) {
+        const printed = [...stdout, ...stderr].filter(Boolean).join('\n');
+        return `Ошибка Python: ${error.message}${printed ? `\n${printed}` : ''}`;
+      } finally {
+        result?.destroy?.();
+        try { pyodideInstance.setStdout?.(); pyodideInstance.setStderr?.(); } catch (_) {}
+      }
+    }
+
+    // События назначаются через делегирование; безопасно переживают санитизацию Markdown.
+    document.addEventListener('click', async (event) => {
+      const control = event.target.closest('[data-action]');
+      if (!control) return;
+      const action = control.dataset.action;
+      // Не позволяем сырому HTML из ответа модели подделывать управляющие кнопки приложения.
+      if (control.closest('#chatBox')) {
+        const isCodeAction = ['copy-code', 'download-code', 'run-python'].includes(action) &&
+          control.classList.contains('code-action') && control.closest('.code-block');
+        const isRetryAction = action === 'retry' && control.classList.contains('retry-action');
+        if (!isCodeAction && !isRetryAction) return;
+      }
+      try {
+        switch (action) {
+          case 'toggle-sidebar': toggleSidebar(); break;
+          case 'close-sidebar': toggleSidebar(false); break;
+          case 'new-chat': createNewChat(); break;
+          case 'clear-chat': clearCurrentChat(); break;
+          case 'switch-chat': switchChat(control.dataset.chatId); break;
+          case 'delete-chat': deleteChat(control.dataset.chatId); break;
+          case 'export-chats': exportChats(); break;
+          case 'save-memory': {
+            const input = $('memoryInput'); const fact = input.value.trim();
+            if (!fact) { input.focus(); break; }
+            try { await MemoryDB.add(fact); input.value = ''; }
+            catch (error) { alert(error.message); }
+            break;
+          }
+          case 'delete-memory':
+            if (confirm('Удалить этот факт из памяти?')) await MemoryDB.delete(control.dataset.memoryId);
+            break;
+          case 'toggle-settings': toggleSettings(true); break;
+          case 'close-settings': toggleSettings(false); break;
+          case 'save-settings': saveSettings(); break;
+          case 'send': await sendMessage(false); break;
+          case 'stop': stopGeneration(); break;
+          case 'retry': await retryLastMessage(); break;
+          case 'copy-code': case 'download-code': case 'run-python': await handleCodeAction(control); break;
+        }
+      } catch (error) { console.error('Ошибка действия интерфейса:', error); alert(error.message || 'Не удалось выполнить действие.'); }
+    });
+    $('sidebarOverlay').addEventListener('click', () => toggleSidebar(false));
+    $('importFile').addEventListener('change', importChats);
+    $('userInput').addEventListener('input', () => autoResizeTextarea($('userInput')));
+    $('userInput').addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); sendMessage(false); }
+    });
+    $('memoryInput').addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') { event.preventDefault(); document.querySelector('[data-action="save-memory"]').click(); }
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        if (!$('settingsModal').classList.contains('hidden')) toggleSettings(false);
+        else if (!$('sidebar').classList.contains('-translate-x-full')) toggleSidebar(false);
+      }
+    });
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', () => {
+        document.body.style.height = `${window.visualViewport.height}px`;
+        scrollToBottom(false);
+      });
+    }
+
+    async function init() {
+      initializeSettings();
+      await initDB();
+      await renderMemory();
+      updateState(null, currentChatId);
+      initPyodide(); // Не блокируем запуск чата длительной загрузкой Python/WebAssembly.
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true });
+    else init();
+  })();
+  </script>
 </body>
 </html>
