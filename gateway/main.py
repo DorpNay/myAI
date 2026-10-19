@@ -40,7 +40,7 @@ def is_cacheable(payload: dict[str, Any]) -> bool:
         return False
     if payload.get("functions") or payload.get("function_call") not in (None, "none"):
         return False
-    if payload.get("temperature", 1) > 0.2:
+    if "temperature" in payload and payload["temperature"] > 0.2:
         return False
     messages = payload.get("messages")
     if not isinstance(messages, list) or not messages:
