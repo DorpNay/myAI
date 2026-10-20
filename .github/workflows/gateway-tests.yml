@@ -5,15 +5,25 @@ on:
     paths:
       - "gateway/**"
       - ".github/workflows/gateway-tests.yml"
+      - "AGENTS.md"
+      - ".agents/skills/**"
+      - "docs/**"
   push:
     branches: [main]
     paths:
       - "gateway/**"
       - ".github/workflows/gateway-tests.yml"
+      - "AGENTS.md"
+      - ".agents/skills/**"
+      - "docs/**"
+
+permissions:
+  contents: read
 
 jobs:
   unit-tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -22,5 +32,7 @@ jobs:
           cache: pip
           cache-dependency-path: gateway/requirements.txt
       - run: python -m pip install -r gateway/requirements.txt
+      - run: python -m compileall -q main.py tests
+        working-directory: gateway
       - run: python -m unittest discover -s tests -v
         working-directory: gateway
