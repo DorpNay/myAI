@@ -11,9 +11,9 @@ The gateway is an optional OpenAI-compatible layer between the static mobile app
       -> model inference
 
 - Exact response cache: canonical payload + HTTP method + endpoint path + query string, SHA-256, SQLite WAL, 15-minute TTL, max 1,000 entries.
-- Cache HIT only for completed, ordinary, non-streaming /v1/chat/completions answers.
+- Cache HIT only for completed, ordinary, non-streaming /v1/chat/completions answers with an explicit numeric temperature between 0 and 0.2. The browser client sets temperature=0 for standard calls; requests that omit it are bypassed rather than trusting upstream defaults.
 - Bypass: streaming, tool/function calls, tool messages, multimodal content, temperature > 0.2 or invalid temperature, other API routes, explicit no-cache/no-store headers, X-AI-Cache-Bypass: 1.
-- Dynamic/live/search requests should send X-AI-Cache-Bypass: 1 even if the request body would otherwise be cacheable.
+- Dynamic/live/search and multi-agent-style requests send X-AI-Cache-Bypass: 1 even if the request body would otherwise be cacheable. These modes also bypass the browser's local response cache.
 - Cache responses include X-AI-Cache: HIT, MISS, or BYPASS and Cache-Control: no-store.
 - Cache stores only finish_reason=stop, not truncated responses or tool-call outputs.
 - Gateway uses a 192 MiB memory cap, half a CPU, a read-only filesystem, a non-root user, dropped Linux capabilities, and a loopback-only published port.

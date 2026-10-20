@@ -11,9 +11,9 @@ description: Safely maintain or deploy the AI Mobile Agent OpenAI-compatible Oll
 
 ## Cache semantics
 - L0 browser persistence, Ollama model/runtime KV reuse, and this exact-response cache are different mechanisms.
-- Cache keys include method, route, query, and canonical request JSON.
-- Only complete finish_reason=stop responses on /v1/chat/completions can be stored.
-- Streaming, tools/functions, tool messages, multimodal requests, temperature > 0.2, dynamic/live/search turns, unknown endpoints, and client bypass headers must avoid cache storage.
+- Cache keys include method, route, query, and canonical request JSON. The static client sets temperature=0 on standard calls to make its cache intent explicit.
+- Only complete finish_reason=stop responses on /v1/chat/completions with an explicit numeric temperature between 0 and 0.2 can be stored. Missing/implicit temperature is a bypass.
+- Streaming, tools/functions, tool messages, multimodal requests, missing or temperature > 0.2, dynamic/live/search and multi-agent-style turns, unknown endpoints, and client bypass headers must avoid cache storage.
 - A HIT skips inference; a MISS means the request was eligible but no entry existed. BYPASS means policy intentionally skipped the response cache.
 
 ## Safety checks

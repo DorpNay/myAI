@@ -600,7 +600,7 @@
 
       const messagesForCache = [{ role: 'system', content: systemPrompt }, ...buildHistory(chat.messages)];
       const cacheKey = await makeCacheKey({ endpoint: baseUrl, model, messages: messagesForCache });
-      if (!useSearch) {
+      if (!useSearch && !useMultiAgent) {
         const cached = await CacheDB.get(cacheKey);
         if (cached) {
           chat.messages.push({ role: 'assistant', content: `${cached}\n\n*(из локального кэша)*` });
@@ -620,12 +620,16 @@
       for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
         throwIfAborted(signal);
         const apiMessages = [{ role: 'system', content: systemPrompt }, ...buildHistory(chat.messages)];
-        const body = { model, messages: apiMessages, stream: false };
+        const body = { model, messages: apiMessages, stream: false, temperature: 0 };
         if (tools) { body.tools = tools; body.tool_choice = 'auto'; }
         showStatus(round === 0 ? '🤖 Ожидание ответа модели…' : '🧠 Модель обрабатывает результаты поиска…');
         const data = await fetchJson(buildApiUrl(baseUrl), {
           method: 'POST',
-          headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+            ...((useSearch || useMultiAgent) ? { 'X-AI-Cache-Bypass': '1' } : {})
+          },
           body: JSON.stringify(body)
         }, signal);
         const message = data?.choices?.[0]?.message;
@@ -644,7 +648,7 @@
 
         if (!toolCalls.length) {
           hideStatus();
-          if (assistantMessage.content && !useSearch) await CacheDB.set(cacheKey, assistantMessage.content);
+          if (assistantMessage.content && !useSearch && !useMultiAgent) await CacheDB.set(cacheKey, assistantMessage.content);
           return;
         }
         if (!useSearch || round === MAX_TOOL_ROUNDS) {

@@ -45,6 +45,13 @@ class CachePolicyTests(unittest.TestCase):
         self.assertFalse(should_bypass_cache(
             self.payload, method="POST", path="chat/completions", headers={}
         ))
+        # No explicit temperature means we do not assume upstream defaults are deterministic.
+        without_temperature = dict(self.payload)
+        without_temperature.pop("temperature")
+        self.assertFalse(is_cacheable(without_temperature))
+        self.assertTrue(should_bypass_cache(
+            without_temperature, method="POST", path="chat/completions", headers={}
+        ))
 
     def test_only_chat_completions_post_is_cacheable(self):
         self.assertTrue(should_bypass_cache(

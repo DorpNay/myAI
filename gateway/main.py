@@ -86,12 +86,13 @@ def is_cacheable(payload: dict[str, Any]) -> bool:
     if payload.get("function_call") not in (None, "none"):
         return False
 
+    # The caller must explicitly set a conservative temperature; implicit provider
+    # defaults may be stochastic and are not safe for exact-response reuse.
     temperature = payload.get("temperature")
-    if temperature is not None:
-        if isinstance(temperature, bool) or not isinstance(temperature, (int, float)):
-            return False
-        if not 0 <= temperature <= 0.2:
-            return False
+    if isinstance(temperature, bool) or not isinstance(temperature, (int, float)):
+        return False
+    if not 0 <= temperature <= 0.2:
+        return False
 
     messages = payload.get("messages")
     if not isinstance(messages, list) or not messages:
@@ -233,9 +234,22 @@ async def health() -> dict[str, str]:
 )
 async def proxy(path: str, request: Request) -> Response:
     authorize(request)
-    body = await request.body()
-    if len(body) > MAX_REQUEST_BYTES:
-        raise HTTPException(status_code=413, detail="Request body is too large")
+    content_length = request.headers.get("content-length")
+    if content_length:
+        try:
+            if int(content_length) > MAX_REQUEST_BYTES:
+                raise HTTPException(status_code=413, detail="Request body is too large")
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="Invalid Content-Length") from exc
+
+    # Enforce the limit while consuming the ASGI stream instead of buffering an
+    # arbitrarily large body and checking its size afterwards.
+    body_buffer = bytearray()
+    async for chunk in request.stream():
+        body_buffer.extend(chunk)
+        if len(body_buffer) > MAX_REQUEST_BYTES:
+            raise HTTPException(status_code=413, detail="Request body is too large")
+    body = bytes(body_buffer)
 
     payload: dict[str, Any] | None = None
     if request.method == "POST" and body:
