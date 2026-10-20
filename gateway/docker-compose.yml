@@ -8,7 +8,8 @@ services:
       CACHE_PATH: /data/cache.sqlite3
       CACHE_TTL_SECONDS: ${CACHE_TTL_SECONDS:-900}
       CACHE_MAX_ENTRIES: ${CACHE_MAX_ENTRIES:-1000}
-      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-*}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?Set exact ALLOWED_ORIGINS in .env}
+      MAX_REQUEST_BYTES: ${MAX_REQUEST_BYTES:-4000000}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
